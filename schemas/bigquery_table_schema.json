@@ -1,0 +1,420 @@
+{
+  "table_name": "posts",
+  "dataset": "social_analytics",
+  "description": "Social media posts analytics table",
+  "schema_version": "1.0.0",
+  "partitioning": {
+    "type": "TIME",
+    "field": "date_posted",
+    "granularity": "DAY"
+  },
+  "clustering": {
+    "fields": ["platform", "competitor", "brand", "page_name"]
+  },
+  "fields": [
+    {
+      "name": "id",
+      "type": "STRING",
+      "mode": "REQUIRED",
+      "description": "Unique identifier for processed post"
+    },
+    {
+      "name": "post_id",
+      "type": "STRING",
+      "mode": "REQUIRED",
+      "description": "Original post ID from platform"
+    },
+    {
+      "name": "crawl_id",
+      "type": "STRING",
+      "mode": "REQUIRED",
+      "description": "Crawl session identifier"
+    },
+    {
+      "name": "snapshot_id",
+      "type": "STRING",
+      "mode": "NULLABLE",
+      "description": "BrightData snapshot identifier"
+    },
+    {
+      "name": "platform",
+      "type": "STRING",
+      "mode": "REQUIRED",
+      "description": "Social media platform (facebook, youtube, instagram)"
+    },
+    {
+      "name": "post_url",
+      "type": "STRING",
+      "mode": "REQUIRED",
+      "description": "Direct URL to post"
+    },
+    {
+      "name": "post_content",
+      "type": "STRING",
+      "mode": "NULLABLE",
+      "description": "Post text content"
+    },
+    {
+      "name": "post_type",
+      "type": "STRING",
+      "mode": "NULLABLE",
+      "description": "Type of post (Post, Photo, Video, etc.)"
+    },
+    {
+      "name": "date_posted",
+      "type": "TIMESTAMP",
+      "mode": "REQUIRED",
+      "description": "When post was originally published"
+    },
+    {
+      "name": "crawl_date",
+      "type": "TIMESTAMP",
+      "mode": "NULLABLE",
+      "description": "When post was crawled"
+    },
+    {
+      "name": "processed_date",
+      "type": "TIMESTAMP",
+      "mode": "REQUIRED",
+      "description": "When post was processed"
+    },
+    {
+      "name": "grouped_date",
+      "type": "DATE",
+      "mode": "REQUIRED",
+      "description": "Date for analytics grouping"
+    },
+    {
+      "name": "user_url",
+      "type": "STRING",
+      "mode": "NULLABLE",
+      "description": "URL to user/page profile"
+    },
+    {
+      "name": "user_username",
+      "type": "STRING",
+      "mode": "NULLABLE",
+      "description": "Display name of user/page"
+    },
+    {
+      "name": "user_profile_id",
+      "type": "STRING",
+      "mode": "NULLABLE",
+      "description": "Platform profile/page ID"
+    },
+    {
+      "name": "page_name",
+      "type": "STRING",
+      "mode": "NULLABLE",
+      "description": "Name of page/channel"
+    },
+    {
+      "name": "page_category",
+      "type": "STRING",
+      "mode": "NULLABLE",
+      "description": "Category of page/channel"
+    },
+    {
+      "name": "page_verified",
+      "type": "BOOL",
+      "mode": "NULLABLE",
+      "description": "Whether page is verified"
+    },
+    {
+      "name": "page_followers",
+      "type": "INT64",
+      "mode": "NULLABLE",
+      "description": "Number of page followers"
+    },
+    {
+      "name": "page_likes",
+      "type": "INT64",
+      "mode": "NULLABLE",
+      "description": "Number of page likes"
+    },
+    {
+      "name": "competitor",
+      "type": "STRING",
+      "mode": "REQUIRED",
+      "description": "Competitor identifier"
+    },
+    {
+      "name": "brand",
+      "type": "STRING",
+      "mode": "NULLABLE",
+      "description": "Brand identifier"
+    },
+    {
+      "name": "category",
+      "type": "STRING",
+      "mode": "NULLABLE",
+      "description": "Category identifier"
+    },
+    {
+      "name": "engagement_metrics",
+      "type": "RECORD",
+      "mode": "NULLABLE",
+      "description": "Engagement metrics for post",
+      "fields": [
+        {
+          "name": "likes",
+          "type": "INT64",
+          "mode": "NULLABLE",
+          "description": "Total likes"
+        },
+        {
+          "name": "comments",
+          "type": "INT64",
+          "mode": "NULLABLE",
+          "description": "Total comments"
+        },
+        {
+          "name": "shares",
+          "type": "INT64",
+          "mode": "NULLABLE",
+          "description": "Total shares"
+        },
+        {
+          "name": "reactions",
+          "type": "INT64",
+          "mode": "NULLABLE",
+          "description": "Total reactions"
+        },
+        {
+          "name": "views",
+          "type": "INT64",
+          "mode": "NULLABLE",
+          "description": "Total views (YouTube)"
+        },
+        {
+          "name": "reactions_by_type",
+          "type": "RECORD",
+          "mode": "REPEATED",
+          "description": "Breakdown of reactions by type",
+          "fields": [
+            {
+              "name": "type",
+              "type": "STRING",
+              "mode": "REQUIRED",
+              "description": "Reaction type (Like, Love, etc.)"
+            },
+            {
+              "name": "count",
+              "type": "INT64",
+              "mode": "REQUIRED",
+              "description": "Count of this reaction type"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "content_analysis",
+      "type": "RECORD",
+      "mode": "NULLABLE",
+      "description": "Content analysis results",
+      "fields": [
+        {
+          "name": "text_length",
+          "type": "INT64",
+          "mode": "NULLABLE",
+          "description": "Length of post content"
+        },
+        {
+          "name": "language",
+          "type": "STRING",
+          "mode": "NULLABLE",
+          "description": "Detected language"
+        },
+        {
+          "name": "sentiment_score",
+          "type": "FLOAT64",
+          "mode": "NULLABLE",
+          "description": "Sentiment polarity (-1 to 1)"
+        },
+        {
+          "name": "hashtags",
+          "type": "STRING",
+          "mode": "REPEATED",
+          "description": "Array of hashtags"
+        },
+        {
+          "name": "contains_sponsored",
+          "type": "BOOL",
+          "mode": "NULLABLE",
+          "description": "Whether post is sponsored"
+        }
+      ]
+    },
+    {
+      "name": "media_metadata",
+      "type": "RECORD",
+      "mode": "NULLABLE",
+      "description": "Media metadata for post",
+      "fields": [
+        {
+          "name": "media_count",
+          "type": "INT64",
+          "mode": "NULLABLE",
+          "description": "Total number of media attachments"
+        },
+        {
+          "name": "has_video",
+          "type": "BOOL",
+          "mode": "NULLABLE",
+          "description": "Whether post contains video"
+        },
+        {
+          "name": "has_image",
+          "type": "BOOL",
+          "mode": "NULLABLE",
+          "description": "Whether post contains images"
+        },
+        {
+          "name": "media_processing_requested",
+          "type": "BOOL",
+          "mode": "NULLABLE",
+          "description": "Whether media processing was requested"
+        },
+        {
+          "name": "primary_image_url",
+          "type": "STRING",
+          "mode": "NULLABLE",
+          "description": "Primary image URL"
+        },
+        {
+          "name": "attachments",
+          "type": "RECORD",
+          "mode": "REPEATED",
+          "description": "Media attachments",
+          "fields": [
+            {
+              "name": "id",
+              "type": "STRING",
+              "mode": "REQUIRED",
+              "description": "Attachment ID"
+            },
+            {
+              "name": "type",
+              "type": "STRING",
+              "mode": "REQUIRED",
+              "description": "Attachment type (Photo, Video)"
+            },
+            {
+              "name": "url",
+              "type": "STRING",
+              "mode": "REQUIRED",
+              "description": "Media file URL"
+            },
+            {
+              "name": "attachment_url",
+              "type": "STRING",
+              "mode": "NULLABLE",
+              "description": "Platform attachment URL"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "page_metadata",
+      "type": "RECORD",
+      "mode": "NULLABLE",
+      "description": "Page metadata for competitor analysis",
+      "fields": [
+        {
+          "name": "page_intro",
+          "type": "STRING",
+          "mode": "NULLABLE",
+          "description": "Page introduction"
+        },
+        {
+          "name": "page_logo",
+          "type": "STRING",
+          "mode": "NULLABLE",
+          "description": "Page logo URL"
+        },
+        {
+          "name": "page_website",
+          "type": "STRING",
+          "mode": "NULLABLE",
+          "description": "External website URL"
+        },
+        {
+          "name": "page_phone",
+          "type": "STRING",
+          "mode": "NULLABLE",
+          "description": "Contact phone number"
+        },
+        {
+          "name": "page_email",
+          "type": "STRING",
+          "mode": "NULLABLE",
+          "description": "Contact email"
+        },
+        {
+          "name": "page_creation_date",
+          "type": "TIMESTAMP",
+          "mode": "NULLABLE",
+          "description": "Page creation date"
+        },
+        {
+          "name": "page_address",
+          "type": "STRING",
+          "mode": "NULLABLE",
+          "description": "Physical address"
+        },
+        {
+          "name": "page_reviews_score",
+          "type": "FLOAT64",
+          "mode": "NULLABLE",
+          "description": "Page review score"
+        },
+        {
+          "name": "page_reviewers_count",
+          "type": "INT64",
+          "mode": "NULLABLE",
+          "description": "Number of reviewers"
+        }
+      ]
+    },
+    {
+      "name": "processing_metadata",
+      "type": "RECORD",
+      "mode": "NULLABLE",
+      "description": "Processing metadata",
+      "fields": [
+        {
+          "name": "processing_duration_seconds",
+          "type": "INT64",
+          "mode": "NULLABLE",
+          "description": "Processing duration in seconds"
+        },
+        {
+          "name": "processing_version",
+          "type": "STRING",
+          "mode": "NULLABLE",
+          "description": "Processing service version"
+        },
+        {
+          "name": "schema_version",
+          "type": "STRING",
+          "mode": "NULLABLE",
+          "description": "Schema version used"
+        },
+        {
+          "name": "source_gcs_path",
+          "type": "STRING",
+          "mode": "NULLABLE",
+          "description": "Source GCS path"
+        },
+        {
+          "name": "data_quality_score",
+          "type": "FLOAT64",
+          "mode": "NULLABLE",
+          "description": "Data quality score (0-1)"
+        }
+      ]
+    }
+  ]
+}

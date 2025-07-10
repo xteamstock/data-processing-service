@@ -1,0 +1,373 @@
+{
+  "schema_version": "1.0.0",
+  "platform": "facebook",
+  "created_date": "2025-07-09",
+  "description": "Facebook post schema mapping for BrightData JSON to BigQuery",
+  "source_format": "brightdata_json",
+  "target_format": "bigquery_struct",
+  
+  "field_mappings": {
+    "core_identifiers": {
+      "id": {
+        "source_field": "post_id",
+        "target_field": "post_id", 
+        "target_type": "STRING",
+        "required": true,
+        "validation": "non_empty_string",
+        "description": "Primary post identifier from BrightData"
+      },
+      "url": {
+        "source_field": "url",
+        "target_field": "post_url",
+        "target_type": "STRING",
+        "required": true,
+        "validation": "url_format",
+        "description": "Direct URL to Facebook post"
+      },
+      "shortcode": {
+        "source_field": "shortcode",
+        "target_field": "post_shortcode",
+        "target_type": "STRING",
+        "required": false,
+        "description": "Facebook post shortcode identifier"
+      }
+    },
+    
+    "content_fields": {
+      "content": {
+        "source_field": "content",
+        "target_field": "post_content",
+        "target_type": "STRING",
+        "required": false,
+        "max_length": 50000,
+        "preprocessing": ["clean_text", "remove_extra_whitespace"],
+        "description": "Main post content text"
+      },
+      "post_type": {
+        "source_field": "post_type",
+        "target_field": "post_type",
+        "target_type": "STRING",
+        "required": false,
+        "default_value": "Post",
+        "description": "Type of post (Post, Photo, Video, etc.)"
+      },
+      "hashtags": {
+        "source_field": "hashtags",
+        "target_field": "content_analysis.hashtags",
+        "target_type": "ARRAY<STRING>",
+        "required": false,
+        "preprocessing": ["normalize_hashtags"],
+        "description": "Array of hashtags from post"
+      }
+    },
+    
+    "temporal_fields": {
+      "date_posted": {
+        "source_field": "date_posted",
+        "target_field": "date_posted",
+        "target_type": "TIMESTAMP",
+        "required": true,
+        "preprocessing": ["parse_iso_timestamp"],
+        "description": "When the post was originally published"
+      },
+      "grouped_date": {
+        "source_field": "date_posted",
+        "target_field": "grouped_date",
+        "target_type": "DATE",
+        "required": true,
+        "preprocessing": ["extract_date_only"],
+        "description": "Date for analytics grouping (YYYY-MM-DD)"
+      }
+    },
+    
+    "user_page_fields": {
+      "user_url": {
+        "source_field": "user_url",
+        "target_field": "user_url",
+        "target_type": "STRING",
+        "required": false,
+        "validation": "url_format",
+        "description": "URL to user/page profile"
+      },
+      "user_username": {
+        "source_field": "user_username_raw",
+        "target_field": "user_username",
+        "target_type": "STRING",
+        "required": false,
+        "preprocessing": ["clean_username"],
+        "description": "Display name of user/page"
+      },
+      "profile_id": {
+        "source_field": "profile_id",
+        "target_field": "user_profile_id",
+        "target_type": "STRING",
+        "required": false,
+        "description": "Facebook profile/page ID"
+      },
+      "page_name": {
+        "source_field": "page_name",
+        "target_field": "page_name",
+        "target_type": "STRING",
+        "required": false,
+        "description": "Name of Facebook page"
+      },
+      "page_category": {
+        "source_field": "page_category",
+        "target_field": "page_category",
+        "target_type": "STRING",
+        "required": false,
+        "description": "Category of Facebook page"
+      },
+      "page_verified": {
+        "source_field": "page_is_verified",
+        "target_field": "page_verified",
+        "target_type": "BOOL",
+        "required": false,
+        "default_value": false,
+        "description": "Whether page is verified"
+      },
+      "page_followers": {
+        "source_field": "page_followers",
+        "target_field": "page_followers",
+        "target_type": "INT64",
+        "required": false,
+        "preprocessing": ["safe_int"],
+        "default_value": 0,
+        "description": "Number of page followers"
+      },
+      "page_likes": {
+        "source_field": "page_likes",
+        "target_field": "page_likes",
+        "target_type": "INT64",
+        "required": false,
+        "preprocessing": ["safe_int"],
+        "default_value": 0,
+        "description": "Number of page likes"
+      }
+    },
+    
+    "engagement_fields": {
+      "likes": {
+        "source_field": "likes",
+        "target_field": "engagement_metrics.likes",
+        "target_type": "INT64",
+        "required": false,
+        "preprocessing": ["safe_int"],
+        "default_value": 0,
+        "description": "Total likes on post"
+      },
+      "comments": {
+        "source_field": "num_comments",
+        "target_field": "engagement_metrics.comments",
+        "target_type": "INT64",
+        "required": false,
+        "preprocessing": ["safe_int"],
+        "default_value": 0,
+        "description": "Total comments on post"
+      },
+      "shares": {
+        "source_field": "num_shares",
+        "target_field": "engagement_metrics.shares",
+        "target_type": "INT64",
+        "required": false,
+        "preprocessing": ["safe_int"],
+        "default_value": 0,
+        "description": "Total shares of post"
+      },
+      "reactions_by_type": {
+        "source_field": "count_reactions_type",
+        "target_field": "engagement_metrics.reactions_by_type",
+        "target_type": "ARRAY<STRUCT<type STRING, count INT64>>",
+        "required": false,
+        "preprocessing": ["parse_reaction_types"],
+        "description": "Detailed breakdown of reactions by type"
+      }
+    },
+    
+    "media_fields": {
+      "attachments": {
+        "source_field": "attachments",
+        "target_field": "media_metadata.attachments",
+        "target_type": "ARRAY<STRUCT<id STRING, type STRING, url STRING, attachment_url STRING>>",
+        "required": false,
+        "preprocessing": ["parse_attachments"],
+        "description": "Media attachments (photos, videos)"
+      },
+      "post_image": {
+        "source_field": "post_image",
+        "target_field": "media_metadata.primary_image_url",
+        "target_type": "STRING",
+        "required": false,
+        "validation": "url_format",
+        "description": "Primary image URL for post"
+      }
+    },
+    
+    "page_metadata_fields": {
+      "page_intro": {
+        "source_field": "page_intro",
+        "target_field": "page_metadata.page_intro",
+        "target_type": "STRING",
+        "required": false,
+        "description": "Page introduction/description"
+      },
+      "page_logo": {
+        "source_field": "page_logo",
+        "target_field": "page_metadata.page_logo",
+        "target_type": "STRING",
+        "required": false,
+        "validation": "url_format",
+        "description": "Page logo URL"
+      },
+      "page_website": {
+        "source_field": "page_external_website",
+        "target_field": "page_metadata.page_website",
+        "target_type": "STRING",
+        "required": false,
+        "validation": "url_format",
+        "description": "External website URL"
+      },
+      "page_phone": {
+        "source_field": "page_phone",
+        "target_field": "page_metadata.page_phone",
+        "target_type": "STRING",
+        "required": false,
+        "description": "Page contact phone number"
+      },
+      "page_email": {
+        "source_field": "page_email",
+        "target_field": "page_metadata.page_email",
+        "target_type": "STRING",
+        "required": false,
+        "validation": "email_format",
+        "description": "Page contact email"
+      },
+      "page_creation_time": {
+        "source_field": "page_creation_time",
+        "target_field": "page_metadata.page_creation_date",
+        "target_type": "TIMESTAMP",
+        "required": false,
+        "preprocessing": ["parse_iso_timestamp"],
+        "description": "When page was created"
+      },
+      "page_address": {
+        "source_field": "about",
+        "target_field": "page_metadata.page_address",
+        "target_type": "STRING",
+        "required": false,
+        "preprocessing": ["extract_address_from_about"],
+        "description": "Page physical address"
+      },
+      "page_reviews_score": {
+        "source_field": "page_reviews_score",
+        "target_field": "page_metadata.page_reviews_score",
+        "target_type": "FLOAT64",
+        "required": false,
+        "preprocessing": ["safe_float"],
+        "description": "Page review score"
+      },
+      "page_reviewers_count": {
+        "source_field": "page_reviewers_amount",
+        "target_field": "page_metadata.page_reviewers_count",
+        "target_type": "INT64",
+        "required": false,
+        "preprocessing": ["safe_int"],
+        "default_value": 0,
+        "description": "Number of page reviewers"
+      }
+    },
+    
+    "sponsored_content": {
+      "is_sponsored": {
+        "source_field": "is_sponsored",
+        "target_field": "content_analysis.contains_sponsored",
+        "target_type": "BOOL",
+        "required": false,
+        "default_value": false,
+        "description": "Whether post is sponsored content"
+      }
+    }
+  },
+  
+  "computed_fields": {
+    "total_reactions": {
+      "target_field": "engagement_metrics.reactions",
+      "target_type": "INT64",
+      "computation": "sum_reactions_by_type",
+      "description": "Total reactions across all types"
+    },
+    "media_count": {
+      "target_field": "media_metadata.media_count",
+      "target_type": "INT64",
+      "computation": "count_attachments",
+      "description": "Total number of media attachments"
+    },
+    "has_video": {
+      "target_field": "media_metadata.has_video",
+      "target_type": "BOOL",
+      "computation": "check_video_attachments",
+      "description": "Whether post contains video"
+    },
+    "has_image": {
+      "target_field": "media_metadata.has_image",
+      "target_type": "BOOL",
+      "computation": "check_image_attachments",
+      "description": "Whether post contains images"
+    },
+    "text_length": {
+      "target_field": "content_analysis.text_length",
+      "target_type": "INT64",
+      "computation": "calculate_text_length",
+      "description": "Length of post content"
+    },
+    "language": {
+      "target_field": "content_analysis.language",
+      "target_type": "STRING",
+      "computation": "detect_language",
+      "description": "Detected language of content"
+    },
+    "sentiment_score": {
+      "target_field": "content_analysis.sentiment_score",
+      "target_type": "FLOAT64",
+      "computation": "calculate_sentiment",
+      "description": "Sentiment polarity score (-1 to 1)"
+    },
+    "data_quality_score": {
+      "target_field": "processing_metadata.data_quality_score",
+      "target_type": "FLOAT64",
+      "computation": "calculate_data_quality",
+      "description": "Data completeness score (0 to 1)"
+    }
+  },
+  
+  "validation_rules": {
+    "required_fields": [
+      "post_id",
+      "post_url",
+      "date_posted"
+    ],
+    "data_quality_thresholds": {
+      "minimum_score": 0.3,
+      "content_required": false,
+      "engagement_required": false
+    },
+    "format_validations": {
+      "url_fields": ["post_url", "user_url", "page_logo", "page_website"],
+      "timestamp_fields": ["date_posted", "page_creation_time"],
+      "integer_fields": ["page_followers", "page_likes", "likes", "comments", "shares"],
+      "boolean_fields": ["page_verified", "is_sponsored"]
+    }
+  },
+  
+  "preprocessing_functions": {
+    "clean_text": "Remove extra whitespace and limit length",
+    "normalize_hashtags": "Convert to lowercase and remove # prefix",
+    "parse_iso_timestamp": "Convert ISO timestamp to BigQuery format",
+    "extract_date_only": "Extract YYYY-MM-DD from timestamp",
+    "safe_int": "Convert to integer with 0 default",
+    "safe_float": "Convert to float with 0.0 default",
+    "parse_reaction_types": "Convert reactions array to structured format",
+    "parse_attachments": "Convert attachments to structured format",
+    "extract_address_from_about": "Extract address from about sections"
+  }
+}

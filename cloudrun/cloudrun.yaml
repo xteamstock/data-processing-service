@@ -1,0 +1,75 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: data-processing-service
+  namespace: '366008494339'
+  selfLink: >-
+    /apis/serving.knative.dev/v1/namespaces/366008494339/services/data-processing-service
+  uid: 61cb28c6-ca8e-449e-adba-bdda5630b372
+  resourceVersion: AAY5lQbAxkc
+  generation: 8
+  creationTimestamp: '2025-07-09T17:51:25.772111Z'
+  labels:
+    run.googleapis.com/satisfiesPzs: 'true'
+    cloud.googleapis.com/location: asia-southeast1
+  annotations:
+    serving.knative.dev/creator: qbao2805@gmail.com
+    serving.knative.dev/lastModifier: qbao2805@gmail.com
+    run.googleapis.com/build-enable-automatic-updates: 'false'
+    run.googleapis.com/build-id: ea899de8-7c1c-4444-a04d-87eaed56b579
+    run.googleapis.com/build-image-uri: >-
+      asia-southeast1-docker.pkg.dev/competitor-destroyer/cloud-run-source-deploy/data-processing-service
+    run.googleapis.com/build-name: >-
+      projects/366008494339/locations/asia-southeast1/builds/ea899de8-7c1c-4444-a04d-87eaed56b579
+    run.googleapis.com/build-source-location: >-
+      gs://run-sources-competitor-destroyer-asia-southeast1/services/data-processing-service/1752161759.803097-b91a9d63fd8241beb42916374cf01160.zip#1752161778315866
+    run.googleapis.com/client-name: gcloud
+    run.googleapis.com/client-version: 522.0.0
+    run.googleapis.com/operation-id: 3c08bff3-68dd-4855-9042-3ec7f28b7363
+    run.googleapis.com/ingress: all
+    run.googleapis.com/ingress-status: all
+    run.googleapis.com/urls: >-
+      ["https://data-processing-service-366008494339.asia-southeast1.run.app","https://data-processing-service-ud5pi5bwfq-as.a.run.app"]
+spec:
+  template:
+    metadata:
+      labels:
+        client.knative.dev/nonce: dvgmxemxzm
+        run.googleapis.com/startupProbeType: Default
+      annotations:
+        autoscaling.knative.dev/maxScale: '10'
+        run.googleapis.com/client-name: gcloud
+        run.googleapis.com/client-version: 522.0.0
+        run.googleapis.com/startup-cpu-boost: 'true'
+    spec:
+      containerConcurrency: 100
+      timeoutSeconds: 300
+      serviceAccountName: data-processing-sa@competitor-destroyer.iam.gserviceaccount.com
+      containers:
+      - image: >-
+          asia-southeast1-docker.pkg.dev/competitor-destroyer/cloud-run-source-deploy/data-processing-service@sha256:ccad57ea8ff28ffffea6dc3848fce8976e9f6f7d0dd58fb1f8d7707044ba0ec0
+        ports:
+        - name: http1
+          containerPort: 8080
+        env:
+        - name: GOOGLE_CLOUD_PROJECT
+          value: competitor-destroyer
+        - name: BIGQUERY_DATASET
+          value: social_analytics
+        - name: PUBSUB_TOPIC_PREFIX
+          value: social-analytics
+        - name: GCS_BUCKET_RAW_DATA
+          value: social-analytics-raw-data
+        resources:
+          limits:
+            cpu: '1'
+            memory: 1Gi
+        startupProbe:
+          timeoutSeconds: 240
+          periodSeconds: 240
+          failureThreshold: 1
+          tcpSocket:
+            port: 8080
+  traffic:
+  - percent: 100
+    latestRevision: true

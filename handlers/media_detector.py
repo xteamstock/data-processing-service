@@ -120,17 +120,42 @@ class MediaDetector:
                 
                 logger.debug(f"Detected image: {attachment_id}")
         
-        # Create media metadata
+        # Combine video and image attachments into single attachments array for BigQuery schema
+        all_attachments = []
+        primary_image_url = None
+        
+        # Add video attachments
+        for video_info in video_attachments:
+            attachment = {
+                'id': video_info['id'],
+                'type': 'Video',
+                'url': video_info.get('video_url') or video_info.get('thumbnail_url'),
+                'attachment_url': video_info.get('attachment_url')
+            }
+            all_attachments.append(attachment)
+        
+        # Add image attachments
+        for image_info in image_attachments:
+            attachment = {
+                'id': image_info['id'],
+                'type': 'Photo',
+                'url': image_info['url'],
+                'attachment_url': image_info.get('attachment_url')
+            }
+            all_attachments.append(attachment)
+            
+            # Set primary image URL (first image found)
+            if not primary_image_url and image_info.get('url'):
+                primary_image_url = image_info['url']
+        
+        # Create media metadata matching BigQuery schema
         media_metadata = {
             'media_count': total_media_count,
-            'video_count': video_count,
-            'image_count': image_count,
             'has_video': video_count > 0,
             'has_image': image_count > 0,
             'media_processing_requested': total_media_count > 0,
-            'video_attachments': video_attachments,
-            'image_attachments': image_attachments,
-            'detection_timestamp': post.get('processed_date') or post.get('timestamp')
+            'primary_image_url': primary_image_url,
+            'attachments': all_attachments
         }
         
         if total_media_count > 0:
@@ -171,14 +196,11 @@ class MediaDetector:
         """Get empty media metadata for posts without media."""
         return {
             'media_count': 0,
-            'video_count': 0,
-            'image_count': 0,
             'has_video': False,
             'has_image': False,
             'media_processing_requested': False,
-            'video_attachments': [],
-            'image_attachments': [],
-            'detection_timestamp': None
+            'primary_image_url': None,
+            'attachments': []
         }
     
     def extract_media_for_processing_event(self, posts_with_media: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -204,31 +226,35 @@ class MediaDetector:
             if not media_metadata.get('media_processing_requested', False):
                 continue
             
-            # Extract video information
-            for video_attachment in media_metadata.get('video_attachments', []):
-                total_videos += 1
-                video_urls.append(video_attachment.get('video_url'))
+            # Extract media information from attachments
+            for attachment in media_metadata.get('attachments', []):
+                attachment_type = attachment.get('type', '').lower()
+                attachment_id = attachment.get('id')
+                attachment_url = attachment.get('url')
                 
-                post_media_mapping.append({
-                    'post_id': post_id,
-                    'media_type': 'video',
-                    'media_id': video_attachment.get('id'),
-                    'media_url': video_attachment.get('video_url'),
-                    'thumbnail_url': video_attachment.get('thumbnail_url'),
-                    'video_length': video_attachment.get('video_length')
-                })
-            
-            # Extract image information
-            for image_attachment in media_metadata.get('image_attachments', []):
-                total_images += 1
-                image_urls.append(image_attachment.get('url'))
+                if attachment_type == 'video':
+                    total_videos += 1
+                    video_urls.append(attachment_url)
+                    
+                    post_media_mapping.append({
+                        'post_id': post_id,
+                        'media_type': 'video',
+                        'media_id': attachment_id,
+                        'media_url': attachment_url,
+                        'attachment_url': attachment.get('attachment_url')
+                    })
                 
-                post_media_mapping.append({
-                    'post_id': post_id,
-                    'media_type': 'image',
-                    'media_id': image_attachment.get('id'),
-                    'media_url': image_attachment.get('url')
-                })
+                elif attachment_type == 'photo':
+                    total_images += 1
+                    image_urls.append(attachment_url)
+                    
+                    post_media_mapping.append({
+                        'post_id': post_id,
+                        'media_type': 'image',
+                        'media_id': attachment_id,
+                        'media_url': attachment_url,
+                        'attachment_url': attachment.get('attachment_url')
+                    })
         
         return {
             'total_media_count': total_videos + total_images,

@@ -1,0 +1,416 @@
+{
+  "schema_version": "1.0.0",
+  "platform": "tiktok",
+  "created_date": "2025-07-12",
+  "description": "TikTok post schema mapping for Apify JSON to BigQuery",
+  "source_format": "apify_json",
+  "target_format": "bigquery_struct",
+  
+  "field_mappings": {
+    "core_identifiers": {
+      "id": {
+        "source_field": "id",
+        "target_field": "video_id", 
+        "target_type": "STRING",
+        "required": true,
+        "validation": "non_empty_string",
+        "description": "Primary TikTok video identifier from Apify"
+      },
+      "url": {
+        "source_field": "webVideoUrl",
+        "target_field": "video_url",
+        "target_type": "STRING",
+        "required": true,
+        "validation": "url_format",
+        "description": "Direct URL to TikTok video"
+      }
+    },
+    
+    "content_fields": {
+      "content": {
+        "source_field": "text",
+        "target_field": "description",
+        "target_type": "STRING",
+        "required": false,
+        "max_length": 2200,
+        "preprocessing": ["clean_text", "remove_extra_whitespace"],
+        "description": "TikTok video description/caption"
+      },
+      "video_type": {
+        "source_field": "type",
+        "target_field": "video_type",
+        "target_type": "STRING",
+        "required": false,
+        "default_value": "video",
+        "description": "Type of TikTok content"
+      },
+      "hashtags": {
+        "source_field": "hashtags",
+        "target_field": "content_analysis.hashtags",
+        "target_type": "ARRAY<STRING>",
+        "required": false,
+        "preprocessing": ["extract_hashtag_names"],
+        "description": "Array of hashtags from TikTok video"
+      },
+      "mentions": {
+        "source_field": "mentions",
+        "target_field": "content_analysis.mentions",
+        "target_type": "ARRAY<STRING>",
+        "required": false,
+        "preprocessing": ["extract_mention_names"],
+        "description": "Array of user mentions"
+      }
+    },
+    
+    "temporal_fields": {
+      "date_posted": {
+        "source_field": "createTimeISO",
+        "target_field": "date_posted",
+        "target_type": "TIMESTAMP",
+        "required": true,
+        "preprocessing": ["parse_iso_timestamp"],
+        "description": "When the TikTok video was originally published"
+      },
+      "grouped_date": {
+        "source_field": "createTimeISO",
+        "target_field": "grouped_date",
+        "target_type": "DATE",
+        "required": true,
+        "preprocessing": ["extract_date_only"],
+        "description": "Date for analytics grouping (YYYY-MM-DD)"
+      }
+    },
+    
+    "user_page_fields": {
+      "user_url": {
+        "source_field": "authorMeta.profileUrl",
+        "target_field": "user_url",
+        "target_type": "STRING",
+        "required": false,
+        "validation": "url_format",
+        "description": "URL to TikTok user profile"
+      },
+      "user_username": {
+        "source_field": "authorMeta.name",
+        "target_field": "user_username",
+        "target_type": "STRING",
+        "required": false,
+        "preprocessing": ["clean_username"],
+        "description": "TikTok username (@handle)"
+      },
+      "author_name": {
+        "source_field": "authorMeta.nickName",
+        "target_field": "author_name",
+        "target_type": "STRING",
+        "required": false,
+        "preprocessing": ["clean_text"],
+        "description": "TikTok display name"
+      },
+      "profile_id": {
+        "source_field": "authorMeta.id",
+        "target_field": "user_profile_id",
+        "target_type": "STRING",
+        "required": false,
+        "description": "TikTok user profile ID"
+      },
+      "author_verified": {
+        "source_field": "authorMeta.verified",
+        "target_field": "author_verified",
+        "target_type": "BOOL",
+        "required": false,
+        "default_value": false,
+        "description": "Whether TikTok user is verified"
+      },
+      "author_follower_count": {
+        "source_field": "authorMeta.fans",
+        "target_field": "author_follower_count",
+        "target_type": "INT64",
+        "required": false,
+        "preprocessing": ["safe_int"],
+        "default_value": 0,
+        "description": "Number of user followers"
+      },
+      "author_following_count": {
+        "source_field": "authorMeta.following",
+        "target_field": "author_metadata.following_count",
+        "target_type": "INT64",
+        "required": false,
+        "preprocessing": ["safe_int"],
+        "default_value": 0,
+        "description": "Number of accounts user follows"
+      },
+      "author_video_count": {
+        "source_field": "authorMeta.video",
+        "target_field": "author_metadata.video_count",
+        "target_type": "INT64",
+        "required": false,
+        "preprocessing": ["safe_int"],
+        "default_value": 0,
+        "description": "Total number of videos by user"
+      }
+    },
+    
+    "engagement_fields": {
+      "views": {
+        "source_field": "playCount",
+        "target_field": "play_count",
+        "target_type": "INT64",
+        "required": false,
+        "preprocessing": ["safe_int"],
+        "default_value": 0,
+        "description": "Total video views/plays"
+      },
+      "likes": {
+        "source_field": "diggCount",
+        "target_field": "digg_count",
+        "target_type": "INT64",
+        "required": false,
+        "preprocessing": ["safe_int"],
+        "default_value": 0,
+        "description": "Total likes (diggs) on video"
+      },
+      "comments": {
+        "source_field": "commentCount",
+        "target_field": "comment_count",
+        "target_type": "INT64",
+        "required": false,
+        "preprocessing": ["safe_int"],
+        "default_value": 0,
+        "description": "Total comments on video"
+      },
+      "shares": {
+        "source_field": "shareCount",
+        "target_field": "share_count",
+        "target_type": "INT64",
+        "required": false,
+        "preprocessing": ["safe_int"],
+        "default_value": 0,
+        "description": "Total shares of video"
+      },
+      "collect_count": {
+        "source_field": "collectCount",
+        "target_field": "engagement_metrics.collect_count",
+        "target_type": "INT64",
+        "required": false,
+        "preprocessing": ["safe_int"],
+        "default_value": 0,
+        "description": "Number of times video was collected/saved"
+      }
+    },
+    
+    "media_fields": {
+      "video_url": {
+        "source_field": "webVideoUrl",
+        "target_field": "video_metadata.video_url",
+        "target_type": "STRING",
+        "required": false,
+        "validation": "url_format",
+        "description": "Direct video download URL"
+      },
+      "cover_image": {
+        "source_field": "videoMeta.coverUrl",
+        "target_field": "video_metadata.cover_image_url",
+        "target_type": "STRING",
+        "required": false,
+        "validation": "url_format",
+        "description": "Video cover/thumbnail image URL"
+      },
+      "duration": {
+        "source_field": "videoMeta.duration",
+        "target_field": "video_metadata.duration_seconds",
+        "target_type": "INT64",
+        "required": false,
+        "preprocessing": ["safe_int"],
+        "description": "Video duration in seconds"
+      },
+      "width": {
+        "source_field": "videoMeta.width",
+        "target_field": "video_metadata.width",
+        "target_type": "INT64",
+        "required": false,
+        "preprocessing": ["safe_int"],
+        "description": "Video width in pixels"
+      },
+      "height": {
+        "source_field": "videoMeta.height",
+        "target_field": "video_metadata.height",
+        "target_type": "INT64",
+        "required": false,
+        "preprocessing": ["safe_int"],
+        "description": "Video height in pixels"
+      },
+      "bitrate": {
+        "source_field": "videoMeta.bitrate",
+        "target_field": "video_metadata.bitrate",
+        "target_type": "INT64",
+        "required": false,
+        "preprocessing": ["safe_int"],
+        "description": "Video bitrate"
+      }
+    },
+    
+    "author_metadata_fields": {
+      "signature": {
+        "source_field": "authorMeta.signature",
+        "target_field": "author_metadata.signature",
+        "target_type": "STRING",
+        "required": false,
+        "max_length": 1000,
+        "preprocessing": ["clean_text"],
+        "description": "User profile bio/signature"
+      },
+      "avatar": {
+        "source_field": "authorMeta.avatar",
+        "target_field": "author_metadata.avatar_url",
+        "target_type": "STRING",
+        "required": false,
+        "validation": "url_format",
+        "description": "User avatar image URL"
+      }
+    },
+    
+    "sponsored_content": {
+      "is_ad": {
+        "source_field": "isAd",
+        "target_field": "content_analysis.is_ad",
+        "target_type": "BOOL",
+        "required": false,
+        "default_value": false,
+        "description": "Whether video is promoted/sponsored content"
+      }
+    },
+    
+    "music_fields": {
+      "music_id": {
+        "source_field": "musicMeta.musicId",
+        "target_field": "video_metadata.music_id",
+        "target_type": "STRING",
+        "required": false,
+        "description": "TikTok music/sound ID"
+      },
+      "music_title": {
+        "source_field": "musicMeta.musicName",
+        "target_field": "video_metadata.music_title",
+        "target_type": "STRING",
+        "required": false,
+        "max_length": 500,
+        "preprocessing": ["clean_text"],
+        "description": "Music/sound title"
+      },
+      "music_author": {
+        "source_field": "musicMeta.musicAuthor",
+        "target_field": "video_metadata.music_author",
+        "target_type": "STRING",
+        "required": false,
+        "max_length": 200,
+        "preprocessing": ["clean_text"],
+        "description": "Music/sound author"
+      },
+      "music_original": {
+        "source_field": "musicMeta.musicOriginal",
+        "target_field": "video_metadata.is_original_sound",
+        "target_type": "BOOL",
+        "required": false,
+        "default_value": false,
+        "description": "Whether the sound is original to this video"
+      }
+    }
+  },
+  
+  "computed_fields": {
+    "total_engagement": {
+      "target_field": "engagement_metrics.total_engagement",
+      "target_type": "INT64",
+      "computation": "sum_tiktok_engagement",
+      "description": "Total engagement (likes + comments + shares)"
+    },
+    "engagement_rate": {
+      "target_field": "engagement_metrics.engagement_rate",
+      "target_type": "FLOAT64",
+      "computation": "calculate_tiktok_engagement_rate",
+      "description": "Engagement rate (total_engagement / views)"
+    },
+    "has_music": {
+      "target_field": "video_metadata.has_music",
+      "target_type": "BOOL",
+      "computation": "check_has_music",
+      "description": "Whether video uses background music/sound"
+    },
+    "video_aspect_ratio": {
+      "target_field": "video_metadata.aspect_ratio",
+      "target_type": "STRING",
+      "computation": "calculate_aspect_ratio",
+      "description": "Video aspect ratio (e.g., 9:16, 16:9)"
+    },
+    "text_length": {
+      "target_field": "content_analysis.text_length",
+      "target_type": "INT64",
+      "computation": "calculate_text_length",
+      "description": "Length of video description"
+    },
+    "hashtag_count": {
+      "target_field": "content_analysis.hashtag_count",
+      "target_type": "INT64",
+      "computation": "count_hashtags",
+      "description": "Number of hashtags in description"
+    },
+    "language": {
+      "target_field": "content_analysis.language",
+      "target_type": "STRING",
+      "computation": "detect_language",
+      "description": "Detected language of description"
+    },
+    "sentiment_score": {
+      "target_field": "content_analysis.sentiment_score",
+      "target_type": "FLOAT64",
+      "computation": "calculate_sentiment",
+      "description": "Sentiment polarity score (-1 to 1)"
+    },
+    "data_quality_score": {
+      "target_field": "processing_metadata.data_quality_score",
+      "target_type": "FLOAT64",
+      "computation": "calculate_tiktok_data_quality",
+      "description": "Data completeness score (0 to 1)"
+    }
+  },
+  
+  "validation_rules": {
+    "required_fields": [
+      "video_id",
+      "video_url",
+      "date_posted"
+    ],
+    "data_quality_thresholds": {
+      "minimum_score": 0.3,
+      "description_required": false,
+      "engagement_required": false
+    },
+    "format_validations": {
+      "url_fields": ["video_url", "user_url", "cover_image_url", "avatar_url"],
+      "timestamp_fields": ["date_posted"],
+      "integer_fields": ["play_count", "digg_count", "comment_count", "share_count", "author_follower_count"],
+      "boolean_fields": ["author_verified", "is_ad", "is_original_sound"]
+    }
+  },
+  
+  "preprocessing_functions": {
+    "clean_text": "Remove extra whitespace and limit length",
+    "extract_hashtag_names": "Extract hashtag text from hashtag objects",
+    "extract_mention_names": "Extract mention usernames from mention objects",
+    "parse_iso_timestamp": "Convert ISO timestamp to BigQuery format",
+    "extract_date_only": "Extract YYYY-MM-DD from timestamp",
+    "safe_int": "Convert to integer with 0 default",
+    "safe_float": "Convert to float with 0.0 default",
+    "clean_username": "Clean and format username",
+    "remove_extra_whitespace": "Clean up whitespace in text content"
+  },
+  
+  "computation_functions": {
+    "sum_tiktok_engagement": "Sum likes + comments + shares",
+    "calculate_tiktok_engagement_rate": "Calculate engagement rate based on views",
+    "check_has_music": "Check if video has background music",
+    "calculate_aspect_ratio": "Calculate video aspect ratio from width/height",
+    "count_hashtags": "Count number of hashtags",
+    "calculate_tiktok_data_quality": "Calculate TikTok-specific data quality score"
+  }
+}

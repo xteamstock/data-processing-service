@@ -243,6 +243,12 @@
           "type": "BOOL",
           "mode": "NULLABLE",
           "description": "Whether post is sponsored"
+        },
+        {
+          "name": "is_ad",
+          "type": "BOOL",
+          "mode": "NULLABLE",
+          "description": "Whether post is an advertisement"
         }
       ]
     },

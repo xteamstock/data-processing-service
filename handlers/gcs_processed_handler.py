@@ -140,7 +140,7 @@ class GCSProcessedHandler:
             
             # Upload to GCS
             blob = self.bucket.blob(gcs_blob_path)
-            blob.upload_from_string(file_content, content_type="application/jsonl")
+            blob.upload_from_string(file_content, content_type="application/jsonl; charset=utf-8")
             
             logger.info(f"Uploaded processed data to gs://{self.bucket_name}/{gcs_blob_path} ({len(posts)} records)")
             return True, gcs_blob_path, len(posts)

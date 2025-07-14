@@ -1,0 +1,484 @@
+{
+  "schema_version": "1.0.0",
+  "platform": "youtube",
+  "created_date": "2025-07-12",
+  "description": "YouTube video schema mapping for Apify JSON to BigQuery",
+  "source_format": "apify_json",
+  "target_format": "bigquery_struct",
+  
+  "field_mappings": {
+    "core_identifiers": {
+      "id": {
+        "source_field": "id",
+        "target_field": "video_id", 
+        "target_type": "STRING",
+        "required": true,
+        "validation": "non_empty_string",
+        "description": "Primary YouTube video identifier from Apify"
+      },
+      "url": {
+        "source_field": "url",
+        "target_field": "video_url",
+        "target_type": "STRING",
+        "required": true,
+        "validation": "url_format",
+        "description": "Direct URL to YouTube video"
+      }
+    },
+    
+    "content_fields": {
+      "title": {
+        "source_field": "title",
+        "target_field": "title",
+        "target_type": "STRING",
+        "required": true,
+        "max_length": 100,
+        "preprocessing": ["clean_text", "remove_extra_whitespace"],
+        "description": "YouTube video title"
+      },
+      "description": {
+        "source_field": "text",
+        "target_field": "description",
+        "target_type": "STRING",
+        "required": false,
+        "max_length": 5000,
+        "preprocessing": ["clean_text", "remove_extra_whitespace"],
+        "description": "YouTube video description"
+      },
+      "video_type": {
+        "source_field": "type",
+        "target_field": "video_type",
+        "target_type": "STRING",
+        "required": false,
+        "default_value": "video",
+        "description": "Type of YouTube content (video, short, live)"
+      },
+      "hashtags": {
+        "source_field": "hashtags",
+        "target_field": "content_analysis.hashtags",
+        "target_type": "ARRAY<STRING>",
+        "required": false,
+        "preprocessing": ["normalize_hashtags"],
+        "description": "Array of hashtags from YouTube video"
+      },
+      "description_links": {
+        "source_field": "descriptionLinks",
+        "target_field": "content_analysis.description_links",
+        "target_type": "ARRAY<STRUCT<url STRING, text STRING>>",
+        "required": false,
+        "preprocessing": ["parse_description_links"],
+        "description": "Links found in video description"
+      },
+      "comments_turned_off": {
+        "source_field": "commentsTurnedOff",
+        "target_field": "content_analysis.comments_turned_off",
+        "target_type": "BOOL",
+        "required": false,
+        "default_value": false,
+        "description": "Whether comments are disabled for this video"
+      },
+      "is_age_restricted": {
+        "source_field": "isAgeRestricted",
+        "target_field": "content_analysis.is_age_restricted",
+        "target_type": "BOOL",
+        "required": false,
+        "default_value": false,
+        "description": "Whether video is age-restricted"
+      },
+      "is_members_only": {
+        "source_field": "isMembersOnly",
+        "target_field": "content_analysis.is_members_only",
+        "target_type": "BOOL",
+        "required": false,
+        "default_value": false,
+        "description": "Whether video is for channel members only"
+      }
+    },
+    
+    "temporal_fields": {
+      "published_at": {
+        "source_field": "date",
+        "target_field": "published_at",
+        "target_type": "TIMESTAMP",
+        "required": true,
+        "preprocessing": ["parse_iso_timestamp"],
+        "description": "When the YouTube video was originally published"
+      },
+      "grouped_date": {
+        "source_field": "date",
+        "target_field": "grouped_date",
+        "target_type": "DATE",
+        "required": true,
+        "preprocessing": ["extract_date_only"],
+        "description": "Date for analytics grouping (YYYY-MM-DD)"
+      }
+    },
+    
+    "channel_fields": {
+      "channel_url": {
+        "source_field": "channelUrl",
+        "target_field": "channel_url",
+        "target_type": "STRING",
+        "required": false,
+        "validation": "url_format",
+        "description": "URL to YouTube channel"
+      },
+      "channel_id": {
+        "source_field": "channelId",
+        "target_field": "channel_id",
+        "target_type": "STRING",
+        "required": true,
+        "description": "YouTube channel ID"
+      },
+      "channel_name": {
+        "source_field": "channelName",
+        "target_field": "channel_name",
+        "target_type": "STRING",
+        "required": true,
+        "preprocessing": ["clean_text"],
+        "description": "YouTube channel name"
+      },
+      "channel_verified": {
+        "source_field": "isChannelVerified",
+        "target_field": "channel_verified",
+        "target_type": "BOOL",
+        "required": false,
+        "default_value": false,
+        "description": "Whether YouTube channel is verified"
+      },
+      "channel_subscriber_count": {
+        "source_field": "numberOfSubscribers",
+        "target_field": "channel_subscriber_count",
+        "target_type": "INT64",
+        "required": false,
+        "preprocessing": ["safe_int"],
+        "default_value": 0,
+        "description": "Number of channel subscribers"
+      },
+      "channel_avatar_url": {
+        "source_field": "channelAvatarUrl",
+        "target_field": "channel_metadata.avatar_url",
+        "target_type": "STRING",
+        "required": false,
+        "validation": "url_format",
+        "description": "Channel avatar/profile image URL"
+      },
+      "channel_banner_url": {
+        "source_field": "channelBannerUrl",
+        "target_field": "channel_metadata.banner_url",
+        "target_type": "STRING",
+        "required": false,
+        "validation": "url_format",
+        "description": "Channel banner image URL"
+      },
+      "channel_username": {
+        "source_field": "channelUsername",
+        "target_field": "channel_metadata.username",
+        "target_type": "STRING",
+        "required": false,
+        "description": "Channel username/handle"
+      },
+      "channel_description": {
+        "source_field": "channelDescription",
+        "target_field": "channel_metadata.description",
+        "target_type": "STRING",
+        "required": false,
+        "max_length": 5000,
+        "preprocessing": ["clean_text"],
+        "description": "Channel description/about section"
+      },
+      "channel_joined_date": {
+        "source_field": "channelJoinedDate",
+        "target_field": "channel_metadata.joined_date",
+        "target_type": "STRING",
+        "required": false,
+        "description": "When channel was created"
+      },
+      "channel_location": {
+        "source_field": "channelLocation",
+        "target_field": "channel_metadata.location",
+        "target_type": "STRING",
+        "required": false,
+        "description": "Channel's geographic location"
+      },
+      "channel_total_videos": {
+        "source_field": "channelTotalVideos",
+        "target_field": "channel_metadata.total_videos",
+        "target_type": "INT64",
+        "required": false,
+        "preprocessing": ["safe_int"],
+        "default_value": 0,
+        "description": "Total number of videos on channel"
+      },
+      "channel_total_views": {
+        "source_field": "channelTotalViews",
+        "target_field": "channel_metadata.total_views",
+        "target_type": "INT64",
+        "required": false,
+        "preprocessing": ["safe_int"],
+        "default_value": 0,
+        "description": "Total views across all channel videos"
+      },
+      "channel_description_links": {
+        "source_field": "channelDescriptionLinks",
+        "target_field": "channel_metadata.description_links",
+        "target_type": "ARRAY<STRUCT<text STRING, url STRING>>",
+        "required": false,
+        "preprocessing": ["parse_description_links"],
+        "description": "Links in channel description"
+      },
+      "about_channel_info": {
+        "source_field": "aboutChannelInfo",
+        "target_field": "channel_metadata.about_info",
+        "target_type": "JSON",
+        "required": false,
+        "description": "Complete channel information object"
+      },
+      "from_channel_list_page": {
+        "source_field": "fromChannelListPage",
+        "target_field": "crawl_metadata.from_page",
+        "target_type": "STRING",
+        "required": false,
+        "description": "Source page type (videos, shorts, etc.)"
+      },
+      "from_yt_url": {
+        "source_field": "fromYTUrl",
+        "target_field": "crawl_metadata.source_url",
+        "target_type": "STRING",
+        "required": false,
+        "validation": "url_format",
+        "description": "Original YouTube URL crawled"
+      },
+      "input_channel_url": {
+        "source_field": "inputChannelUrl",
+        "target_field": "crawl_metadata.input_url",
+        "target_type": "STRING",
+        "required": false,
+        "validation": "url_format",
+        "description": "Input channel URL for crawling"
+      },
+      "crawl_input": {
+        "source_field": "input",
+        "target_field": "crawl_metadata.input",
+        "target_type": "STRING",
+        "required": false,
+        "description": "Original crawl input parameter"
+      }
+    },
+    
+    "engagement_fields": {
+      "views": {
+        "source_field": "viewCount",
+        "target_field": "view_count",
+        "target_type": "INT64",
+        "required": false,
+        "preprocessing": ["safe_int"],
+        "default_value": 0,
+        "description": "Total video views"
+      },
+      "likes": {
+        "source_field": "likes",
+        "target_field": "like_count",
+        "target_type": "INT64",
+        "required": false,
+        "preprocessing": ["safe_int"],
+        "default_value": 0,
+        "description": "Total likes on video"
+      },
+      "comments": {
+        "source_field": "commentsCount",
+        "target_field": "comment_count",
+        "target_type": "INT64",
+        "required": false,
+        "preprocessing": ["safe_int"],
+        "default_value": 0,
+        "description": "Total comments on video"
+      },
+      "subtitles": {
+        "source_field": "subtitles",
+        "target_field": "video_metadata.subtitles",
+        "target_type": "STRING",
+        "required": false,
+        "description": "Subtitle information for video"
+      },
+      "formats": {
+        "source_field": "formats",
+        "target_field": "video_metadata.formats",
+        "target_type": "ARRAY<STRING>",
+        "required": false,
+        "description": "Available video formats"
+      },
+      "video_order": {
+        "source_field": "order",
+        "target_field": "video_metadata.order",
+        "target_type": "INT64",
+        "required": false,
+        "preprocessing": ["safe_int"],
+        "description": "Video order in channel listing"
+      }
+    },
+    
+    "media_fields": {
+      "thumbnail": {
+        "source_field": "thumbnailUrl",
+        "target_field": "video_metadata.thumbnail_url",
+        "target_type": "STRING",
+        "required": false,
+        "validation": "url_format",
+        "description": "Video thumbnail image URL"
+      },
+      "duration": {
+        "source_field": "duration",
+        "target_field": "video_metadata.duration",
+        "target_type": "STRING",
+        "required": false,
+        "preprocessing": ["clean_text"],
+        "description": "Video duration in HH:MM:SS format"
+      }
+    },
+    
+    "channel_metadata_fields": {
+      "channel_description": {
+        "source_field": "channelDescription",
+        "target_field": "channel_metadata.description",
+        "target_type": "STRING",
+        "required": false,
+        "max_length": 1000,
+        "preprocessing": ["clean_text"],
+        "description": "YouTube channel description"
+      },
+      "channel_total_views": {
+        "source_field": "channelTotalViews",
+        "target_field": "channel_metadata.total_views",
+        "target_type": "INT64",
+        "required": false,
+        "preprocessing": ["safe_int"],
+        "default_value": 0,
+        "description": "Total views across all channel videos"
+      }
+    },
+    
+    "location_fields": {
+      "location": {
+        "source_field": "location",
+        "target_field": "content_analysis.location",
+        "target_type": "STRING",
+        "required": false,
+        "max_length": 200,
+        "preprocessing": ["clean_text"],
+        "description": "Video location/filming location"
+      }
+    },
+    
+    "monetization_fields": {
+      "is_monetized": {
+        "source_field": "isMonetized",
+        "target_field": "content_analysis.is_monetized",
+        "target_type": "BOOL",
+        "required": false,
+        "default_value": false,
+        "description": "Whether video is monetized"
+      }
+    }
+  },
+  
+  "computed_fields": {
+    "total_engagement": {
+      "target_field": "engagement_metrics.total_engagement",
+      "target_type": "INT64",
+      "computation": "sum_youtube_engagement",
+      "description": "Total engagement (likes + comments)"
+    },
+    "engagement_rate": {
+      "target_field": "engagement_metrics.engagement_rate",
+      "target_type": "FLOAT64",
+      "computation": "calculate_youtube_engagement_rate",
+      "description": "Engagement rate (total_engagement / views)"
+    },
+    "duration_seconds": {
+      "target_field": "video_metadata.duration_seconds",
+      "target_type": "INT64",
+      "computation": "parse_youtube_duration",
+      "description": "Video duration converted to seconds"
+    },
+    "is_short": {
+      "target_field": "video_metadata.is_short",
+      "target_type": "BOOL",
+      "computation": "check_is_youtube_short",
+      "description": "Whether video is a YouTube Short (< 60 seconds)"
+    },
+    "text_length": {
+      "target_field": "content_analysis.text_length",
+      "target_type": "INT64",
+      "computation": "calculate_text_length",
+      "description": "Length of video description"
+    },
+    "title_length": {
+      "target_field": "content_analysis.title_length",
+      "target_type": "INT64",
+      "computation": "calculate_title_length",
+      "description": "Length of video title"
+    },
+    "language": {
+      "target_field": "content_analysis.language",
+      "target_type": "STRING",
+      "computation": "detect_language",
+      "description": "Detected language of title/description"
+    },
+    "sentiment_score": {
+      "target_field": "content_analysis.sentiment_score",
+      "target_type": "FLOAT64",
+      "computation": "calculate_sentiment",
+      "description": "Sentiment polarity score (-1 to 1)"
+    },
+    "data_quality_score": {
+      "target_field": "processing_metadata.data_quality_score",
+      "target_type": "FLOAT64",
+      "computation": "calculate_youtube_data_quality",
+      "description": "Data completeness score (0 to 1)"
+    }
+  },
+  
+  "validation_rules": {
+    "required_fields": [
+      "video_id",
+      "video_url",
+      "title",
+      "channel_id",
+      "channel_name",
+      "published_at"
+    ],
+    "data_quality_thresholds": {
+      "minimum_score": 0.4,
+      "description_required": false,
+      "engagement_required": false
+    },
+    "format_validations": {
+      "url_fields": ["video_url", "channel_url", "thumbnail_url"],
+      "timestamp_fields": ["published_at", "channel_creation_date"],
+      "integer_fields": ["view_count", "like_count", "comment_count", "channel_subscriber_count"],
+      "boolean_fields": ["channel_verified", "is_monetized"]
+    }
+  },
+  
+  "preprocessing_functions": {
+    "clean_text": "Remove extra whitespace and limit length",
+    "normalize_keywords": "Clean and normalize keyword array",
+    "normalize_hashtags": "Convert hashtags to lowercase and remove # prefix",
+    "parse_description_links": "Parse description links to structured format",
+    "parse_iso_timestamp": "Convert ISO timestamp to BigQuery format",
+    "extract_date_only": "Extract YYYY-MM-DD from timestamp",
+    "safe_int": "Convert to integer with 0 default",
+    "safe_float": "Convert to float with 0.0 default",
+    "remove_extra_whitespace": "Clean up whitespace in text content"
+  },
+  
+  "computation_functions": {
+    "sum_youtube_engagement": "Sum likes + comments",
+    "calculate_youtube_engagement_rate": "Calculate engagement rate based on views",
+    "parse_youtube_duration": "Convert duration string to seconds",
+    "check_is_youtube_short": "Check if video is a YouTube Short",
+    "calculate_title_length": "Calculate title character length",
+    "calculate_youtube_data_quality": "Calculate YouTube-specific data quality score"
+  }
+}

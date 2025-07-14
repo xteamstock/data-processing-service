@@ -41,23 +41,47 @@ class BigQueryTableCreator:
             self.client.create_dataset(dataset)
             logger.info(f"Created dataset {self.dataset_id}")
     
-    def create_posts_table(self):
-        """Create posts table from schema definition."""
-        schema_file = self.schemas_dir / 'bigquery_table_schema.json'
+    def create_platform_specific_tables(self):
+        """Create separate platform-specific tables for optimal performance."""
+        platforms = [
+            {
+                'name': 'facebook',
+                'table_name': 'facebook_posts',
+                'description': 'Facebook posts analytics table',
+                'cluster_fields': ['competitor', 'brand', 'page_name']
+            },
+            {
+                'name': 'tiktok', 
+                'table_name': 'tiktok_posts',
+                'description': 'TikTok posts analytics table',
+                'cluster_fields': ['competitor', 'brand', 'user_username']
+            },
+            {
+                'name': 'youtube',
+                'table_name': 'youtube_posts', 
+                'description': 'YouTube videos analytics table',
+                'cluster_fields': ['competitor', 'brand', 'channel_name']
+            }
+        ]
         
-        if not schema_file.exists():
-            logger.error(f"Schema file not found: {schema_file}")
-            return False
+        success = True
+        for platform in platforms:
+            if not self._create_platform_table(platform):
+                success = False
+        
+        return success
+    
+    def _create_platform_table(self, platform_config):
+        """Create a platform-specific table with its own optimized schema."""
+        platform_name = platform_config['name']
+        table_name = platform_config['table_name']
         
         try:
-            with open(schema_file, 'r') as f:
-                schema_config = json.load(f)
-            
-            # Convert schema to BigQuery format
-            schema_fields = self._convert_schema_to_bigquery(schema_config['fields'])
+            # Get platform-specific schema directly
+            schema_fields = self._get_platform_schema_fields(platform_name)
             
             # Create table reference
-            table_id = f"{self.project_id}.{self.dataset_id}.{schema_config['table_name']}"
+            table_id = f"{self.project_id}.{self.dataset_id}.{table_name}"
             
             # Check if table exists
             try:
@@ -69,30 +93,109 @@ class BigQueryTableCreator:
             
             # Create table
             table = bigquery.Table(table_id, schema=schema_fields)
-            table.description = schema_config.get('description', '')
+            table.description = platform_config['description']
             
-            # Set partitioning
-            partitioning = schema_config.get('partitioning')
-            if partitioning and partitioning['type'] == 'TIME':
-                table.time_partitioning = bigquery.TimePartitioning(
-                    type_=bigquery.TimePartitioningType.DAY,
-                    field=partitioning['field']
-                )
+            # Set partitioning by date_posted
+            table.time_partitioning = bigquery.TimePartitioning(
+                type_=bigquery.TimePartitioningType.DAY,
+                field="date_posted"
+            )
             
-            # Set clustering
-            clustering = schema_config.get('clustering')
-            if clustering:
-                table.clustering_fields = clustering['fields']
+            # Set platform-specific clustering
+            table.clustering_fields = platform_config['cluster_fields']
             
             # Create the table
             table = self.client.create_table(table)
-            logger.info(f"Created table {table_id}")
+            logger.info(f"Created platform table {table_id}")
             
             return True
             
         except Exception as e:
-            logger.error(f"Error creating posts table: {str(e)}")
+            logger.error(f"Error creating {platform_name} table: {str(e)}")
             return False
+    
+    def _get_platform_schema_fields(self, platform_name):
+        """Get complete platform-specific BigQuery schema fields."""
+        
+        # Common core fields for all platforms
+        core_fields = [
+            {"name": "id", "type": "STRING", "mode": "REQUIRED", "description": "Unique identifier"},
+            {"name": "crawl_id", "type": "STRING", "mode": "REQUIRED", "description": "Crawl session identifier"},
+            {"name": "snapshot_id", "type": "STRING", "mode": "NULLABLE", "description": "Source snapshot identifier"},
+            {"name": "platform", "type": "STRING", "mode": "REQUIRED", "description": "Platform name"},
+            {"name": "competitor", "type": "STRING", "mode": "REQUIRED", "description": "Competitor identifier"},
+            {"name": "brand", "type": "STRING", "mode": "NULLABLE", "description": "Brand identifier"},
+            {"name": "category", "type": "STRING", "mode": "NULLABLE", "description": "Category identifier"},
+            {"name": "date_posted", "type": "TIMESTAMP", "mode": "REQUIRED", "description": "Post publish date"},
+            {"name": "crawl_date", "type": "TIMESTAMP", "mode": "NULLABLE", "description": "Crawl date"},
+            {"name": "processed_date", "type": "TIMESTAMP", "mode": "REQUIRED", "description": "Processing date"},
+            {"name": "grouped_date", "type": "DATE", "mode": "REQUIRED", "description": "Date for grouping"},
+            {"name": "user_url", "type": "STRING", "mode": "NULLABLE", "description": "User profile URL"},
+            {"name": "user_username", "type": "STRING", "mode": "NULLABLE", "description": "Username"},
+            {"name": "user_profile_id", "type": "STRING", "mode": "NULLABLE", "description": "User profile ID"}
+        ]
+        
+        # Platform-specific schemas
+        if platform_name == 'facebook':
+            return self._convert_schema_to_bigquery(core_fields + [
+                {"name": "post_id", "type": "STRING", "mode": "REQUIRED", "description": "Facebook post ID"},
+                {"name": "post_url", "type": "STRING", "mode": "REQUIRED", "description": "Facebook post URL"},
+                {"name": "post_content", "type": "STRING", "mode": "NULLABLE", "description": "Post text content"},
+                {"name": "post_type", "type": "STRING", "mode": "NULLABLE", "description": "Post type"},
+                {"name": "page_name", "type": "STRING", "mode": "NULLABLE", "description": "Facebook page name"},
+                {"name": "page_category", "type": "STRING", "mode": "NULLABLE", "description": "Page category"},
+                {"name": "page_verified", "type": "BOOL", "mode": "NULLABLE", "description": "Page verification status"},
+                {"name": "page_followers", "type": "INT64", "mode": "NULLABLE", "description": "Page followers"},
+                {"name": "page_likes", "type": "INT64", "mode": "NULLABLE", "description": "Page likes"},
+                {"name": "engagement_metrics", "type": "JSON", "mode": "NULLABLE", "description": "Engagement data"},
+                {"name": "content_analysis", "type": "JSON", "mode": "NULLABLE", "description": "Content analysis"},
+                {"name": "media_metadata", "type": "JSON", "mode": "NULLABLE", "description": "Media attachments"},
+                {"name": "page_metadata", "type": "JSON", "mode": "NULLABLE", "description": "Page information"},
+                {"name": "processing_metadata", "type": "JSON", "mode": "NULLABLE", "description": "Processing info"}
+            ])
+        
+        elif platform_name == 'tiktok':
+            return self._convert_schema_to_bigquery(core_fields + [
+                {"name": "video_id", "type": "STRING", "mode": "REQUIRED", "description": "TikTok video ID"},
+                {"name": "video_url", "type": "STRING", "mode": "REQUIRED", "description": "TikTok video URL"},
+                {"name": "description", "type": "STRING", "mode": "NULLABLE", "description": "Video description"},
+                {"name": "author_name", "type": "STRING", "mode": "NULLABLE", "description": "Author display name"},
+                {"name": "author_verified", "type": "BOOL", "mode": "NULLABLE", "description": "Author verification"},
+                {"name": "author_follower_count", "type": "INT64", "mode": "NULLABLE", "description": "Author followers"},
+                {"name": "play_count", "type": "INT64", "mode": "NULLABLE", "description": "Video plays"},
+                {"name": "digg_count", "type": "INT64", "mode": "NULLABLE", "description": "Video likes"},
+                {"name": "share_count", "type": "INT64", "mode": "NULLABLE", "description": "Video shares"},
+                {"name": "comment_count", "type": "INT64", "mode": "NULLABLE", "description": "Video comments"},
+                {"name": "engagement_metrics", "type": "JSON", "mode": "NULLABLE", "description": "Engagement data"},
+                {"name": "content_analysis", "type": "JSON", "mode": "NULLABLE", "description": "Content analysis"},
+                {"name": "video_metadata", "type": "JSON", "mode": "NULLABLE", "description": "Video information"},
+                {"name": "author_metadata", "type": "JSON", "mode": "NULLABLE", "description": "Author information"},
+                {"name": "processing_metadata", "type": "JSON", "mode": "NULLABLE", "description": "Processing info"}
+            ])
+        
+        elif platform_name == 'youtube':
+            return self._convert_schema_to_bigquery(core_fields + [
+                {"name": "video_id", "type": "STRING", "mode": "REQUIRED", "description": "YouTube video ID"},
+                {"name": "video_url", "type": "STRING", "mode": "REQUIRED", "description": "YouTube video URL"},
+                {"name": "title", "type": "STRING", "mode": "NULLABLE", "description": "Video title"},
+                {"name": "description", "type": "STRING", "mode": "NULLABLE", "description": "Video description"},
+                {"name": "channel_id", "type": "STRING", "mode": "NULLABLE", "description": "YouTube channel ID"},
+                {"name": "channel_name", "type": "STRING", "mode": "NULLABLE", "description": "Channel name"},
+                {"name": "channel_verified", "type": "BOOL", "mode": "NULLABLE", "description": "Channel verification"},
+                {"name": "channel_subscriber_count", "type": "INT64", "mode": "NULLABLE", "description": "Channel subscribers"},
+                {"name": "view_count", "type": "INT64", "mode": "NULLABLE", "description": "Video views"},
+                {"name": "like_count", "type": "INT64", "mode": "NULLABLE", "description": "Video likes"},
+                {"name": "comment_count", "type": "INT64", "mode": "NULLABLE", "description": "Video comments"},
+                {"name": "published_at", "type": "TIMESTAMP", "mode": "NULLABLE", "description": "Video publish date"},
+                {"name": "engagement_metrics", "type": "JSON", "mode": "NULLABLE", "description": "Engagement data"},
+                {"name": "content_analysis", "type": "JSON", "mode": "NULLABLE", "description": "Content analysis"},
+                {"name": "video_metadata", "type": "JSON", "mode": "NULLABLE", "description": "Video information"},
+                {"name": "channel_metadata", "type": "JSON", "mode": "NULLABLE", "description": "Channel information"},
+                {"name": "processing_metadata", "type": "JSON", "mode": "NULLABLE", "description": "Processing info"}
+            ])
+        
+        else:
+            raise ValueError(f"Unknown platform: {platform_name}")
     
     def create_processing_events_table(self):
         """Create processing events table for monitoring."""
@@ -184,9 +287,11 @@ class BigQueryTableCreator:
         # Create tables
         success = True
         
-        if not self.create_posts_table():
+        # Create platform-specific tables (Facebook, TikTok, YouTube)
+        if not self.create_platform_specific_tables():
             success = False
         
+        # Create monitoring table
         if not self.create_processing_events_table():
             success = False
         

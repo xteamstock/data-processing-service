@@ -1,0 +1,250 @@
+# Platform Schema Registry
+# Central configuration for all supported social media platforms
+# and their corresponding schema mappings
+
+schema_registry:
+  version: "1.0.0"
+  created_date: "2025-07-12"
+  description: "Registry of all platform schemas for data processing service"
+  
+platforms:
+  facebook:
+    name: "Facebook"
+    api_provider: "brightdata"
+    schema_file: "facebook_post_schema_v1.json"
+    schema_version: "1.0.0"
+    bigquery_table: "facebook_posts"
+    processing_class: "FacebookProcessor"
+    supported_content_types: ["post", "photo", "video", "link", "event"]
+    date_fields:
+      primary: "date_posted"
+      crawl: "crawl_date"
+      processed: "processed_date"
+      grouped: "grouped_date"
+    identifier_fields:
+      primary: "post_id"
+      secondary: "post_url"
+      crawl: "crawl_id"
+      snapshot: "snapshot_id"
+    engagement_fields:
+      likes: "engagement_metrics.likes"
+      comments: "engagement_metrics.comments"
+      shares: "engagement_metrics.shares"
+      reactions: "engagement_metrics.reactions"
+    user_fields:
+      username: "user_username"
+      profile_id: "user_profile_id"
+      page_name: "page_name"
+      verified: "page_verified"
+      followers: "page_followers"
+    media_fields:
+      attachments: "media_metadata.attachments"
+      primary_image: "media_metadata.primary_image_url"
+      media_count: "media_metadata.media_count"
+      has_video: "media_metadata.has_video"
+      has_image: "media_metadata.has_image"
+    
+  tiktok:
+    name: "TikTok"
+    api_provider: "apify"
+    schema_file: "tiktok_post_schema_v1.json"
+    schema_version: "1.0.0"
+    bigquery_table: "tiktok_posts"
+    processing_class: "TikTokProcessor"
+    supported_content_types: ["video"]
+    date_fields:
+      primary: "date_posted"
+      crawl: "crawl_date"
+      processed: "processed_date"
+      grouped: "grouped_date"
+    identifier_fields:
+      primary: "video_id"
+      secondary: "video_url"
+      crawl: "crawl_id"
+      snapshot: "snapshot_id"
+    engagement_fields:
+      likes: "digg_count"
+      comments: "comment_count"
+      shares: "share_count"
+      views: "play_count"
+      collects: "engagement_metrics.collect_count"
+    user_fields:
+      username: "user_username"
+      profile_id: "user_profile_id"
+      author_name: "author_name"
+      verified: "author_verified"
+      followers: "author_follower_count"
+    media_fields:
+      video_url: "video_metadata.video_url"
+      cover_image: "video_metadata.cover_image_url"
+      duration: "video_metadata.duration_seconds"
+      width: "video_metadata.width"
+      height: "video_metadata.height"
+    
+  youtube:
+    name: "YouTube"
+    api_provider: "apify"
+    schema_file: "youtube_video_schema_v1.json"
+    schema_version: "1.0.0"
+    bigquery_table: "youtube_posts"
+    processing_class: "YouTubeProcessor"
+    supported_content_types: ["video", "short", "live"]
+    date_fields:
+      primary: "published_at"
+      crawl: "crawl_date"
+      processed: "processed_date"
+      grouped: "grouped_date"
+    identifier_fields:
+      primary: "video_id"
+      secondary: "video_url"
+      crawl: "crawl_id"
+      snapshot: "snapshot_id"
+    engagement_fields:
+      likes: "like_count"
+      comments: "comment_count"
+      views: "view_count"
+    user_fields:
+      channel_id: "channel_id"
+      channel_name: "channel_name"
+      verified: "channel_verified"
+      subscribers: "channel_subscriber_count"
+    media_fields:
+      thumbnail: "video_metadata.thumbnail_url"
+      duration: "video_metadata.duration"
+      duration_seconds: "video_metadata.duration_seconds"
+      is_short: "video_metadata.is_short"
+      has_captions: "video_metadata.has_captions"
+
+# Schema loading configuration
+schema_loader:
+  base_directory: "schemas"
+  file_pattern: "*_schema_v*.json"
+  cache_schemas: true
+  validate_on_load: true
+  
+# Platform detection rules
+platform_detection:
+  # Rules for auto-detecting platform from data structure
+  facebook:
+    required_fields: ["post_id", "url", "date_posted"]
+    optional_fields: ["user_username", "page_name", "attachments"]
+    api_provider_indicators: ["brightdata"]
+    
+  tiktok:
+    required_fields: ["id", "webVideoUrl", "createTimeISO"]
+    optional_fields: ["authorMeta", "videoMeta", "diggCount"]
+    api_provider_indicators: ["apify"]
+    
+  youtube:
+    required_fields: ["id", "url", "title", "channelId"]
+    optional_fields: ["channelName", "viewCount", "thumbnailUrl"]
+    api_provider_indicators: ["apify"]
+
+# Validation configuration
+validation:
+  strict_mode: false
+  required_field_validation: true
+  data_quality_thresholds:
+    facebook:
+      minimum_score: 0.3
+      content_required: false
+      engagement_required: false
+    tiktok:
+      minimum_score: 0.3
+      content_required: false
+      engagement_required: false
+    youtube:
+      minimum_score: 0.4
+      content_required: false
+      engagement_required: false
+
+# Processing configuration
+processing:
+  parallel_processing: true
+  max_workers: 10
+  batch_size: 100
+  retry_attempts: 3
+  error_handling: "log_and_continue"
+  
+  # Platform-specific processing options
+  facebook:
+    enable_sentiment_analysis: true
+    enable_language_detection: true
+    enable_media_analysis: true
+    
+  tiktok:
+    enable_sentiment_analysis: true
+    enable_language_detection: true
+    enable_music_analysis: true
+    enable_hashtag_analysis: true
+    
+  youtube:
+    enable_sentiment_analysis: true
+    enable_language_detection: true
+    enable_duration_analysis: true
+    enable_keyword_analysis: true
+
+# BigQuery configuration
+bigquery:
+  dataset: "social_analytics"
+  location: "US"
+  partition_field: "grouped_date"
+  clustering_fields: ["competitor", "brand"]
+  
+  # Platform-specific table configurations
+  tables:
+    facebook_posts:
+      partition_type: "DAY"
+      partition_field: "grouped_date"
+      clustering_fields: ["competitor", "brand", "page_name"]
+      expiration_days: null
+      
+    tiktok_posts:
+      partition_type: "DAY"
+      partition_field: "grouped_date"
+      clustering_fields: ["competitor", "brand", "author_name"]
+      expiration_days: null
+      
+    youtube_posts:
+      partition_type: "DAY"
+      partition_field: "grouped_date"
+      clustering_fields: ["competitor", "brand", "channel_name"]
+      expiration_days: null
+
+# Event publishing configuration
+events:
+  publisher_topic: "data-processing-events"
+  
+  # Event types to publish
+  event_types:
+    - "data-processing-started"
+    - "data-processing-completed"
+    - "data-processing-failed"
+    - "data-quality-warning"
+    - "schema-validation-error"
+    
+  # Platform-specific event data
+  event_data_fields:
+    common: ["crawl_id", "snapshot_id", "platform", "competitor", "brand", "category"]
+    facebook: ["post_count", "media_count", "page_name"]
+    tiktok: ["video_count", "author_name", "music_count"]
+    youtube: ["video_count", "channel_name", "short_count"]
+
+# Monitoring configuration
+monitoring:
+  enable_metrics: true
+  metrics_interval: 60  # seconds
+  
+  # Metrics to track per platform
+  metrics:
+    processing_time: true
+    success_rate: true
+    error_rate: true
+    data_quality_score: true
+    throughput: true
+    
+  # Alerting thresholds
+  alerts:
+    error_rate_threshold: 0.05  # 5%
+    processing_time_threshold: 300  # 5 minutes
+    data_quality_threshold: 0.3

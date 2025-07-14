@@ -45,7 +45,12 @@ class SchemaMapper:
             'parse_reaction_types': self._parse_reaction_types,
             'parse_attachments': self._parse_attachments,
             'extract_address_from_about': self._extract_address_from_about,
-            'clean_username': self._clean_username
+            'clean_username': self._clean_username,
+            'remove_extra_whitespace': self._remove_extra_whitespace,
+            'extract_hashtag_names': self._extract_hashtag_names,
+            'extract_mention_names': self._extract_mention_names,
+            'normalize_keywords': self._normalize_keywords,
+            'parse_description_links': self._parse_description_links
         }
         
         self.computation_functions = {
@@ -56,7 +61,19 @@ class SchemaMapper:
             'calculate_text_length': self._calculate_text_length,
             'detect_language': self._detect_language,
             'calculate_sentiment': self._calculate_sentiment,
-            'calculate_data_quality': self._calculate_data_quality
+            'calculate_data_quality': self._calculate_data_quality,
+            'sum_tiktok_engagement': self._sum_tiktok_engagement,
+            'calculate_tiktok_engagement_rate': self._calculate_tiktok_engagement_rate,
+            'check_has_music': self._check_has_music,
+            'calculate_aspect_ratio': self._calculate_aspect_ratio,
+            'count_hashtags': self._count_hashtags,
+            'calculate_tiktok_data_quality': self._calculate_tiktok_data_quality,
+            'sum_youtube_engagement': self._sum_youtube_engagement,
+            'calculate_youtube_engagement_rate': self._calculate_youtube_engagement_rate,
+            'parse_youtube_duration': self._parse_youtube_duration,
+            'check_is_youtube_short': self._check_is_youtube_short,
+            'calculate_title_length': self._calculate_title_length,
+            'calculate_youtube_data_quality': self._calculate_youtube_data_quality
         }
         
         # Load schemas
@@ -123,9 +140,19 @@ class SchemaMapper:
             raise ValueError(f"Schema not found for {platform} v{schema_version}")
         
         # Start with base structure
+        # Get platform-specific post ID
+        if platform == 'facebook':
+            post_id = raw_post.get('post_id', '')
+        elif platform == 'tiktok':
+            post_id = raw_post.get('id', '')
+        elif platform == 'youtube':
+            post_id = raw_post.get('id', '')
+        else:
+            post_id = raw_post.get('id', raw_post.get('post_id', ''))
+        
         transformed_post = {
             # Core identifiers added by service
-            'id': f"{raw_post.get('post_id', '')}_{metadata.get('crawl_id', '')}",
+            'id': f"{post_id}_{metadata.get('crawl_id', '')}",
             'crawl_id': metadata.get('crawl_id', ''),
             'snapshot_id': metadata.get('snapshot_id', ''),
             'platform': platform,
@@ -135,6 +162,23 @@ class SchemaMapper:
             'crawl_date': metadata.get('crawl_date', ''),
             'processed_date': datetime.utcnow().isoformat()
         }
+        
+        # Set platform-specific date_posted field
+        if platform == 'youtube':
+            # For YouTube, use the 'date' field as date_posted
+            date_value = raw_post.get('date')
+            if date_value:
+                transformed_post['date_posted'] = self._parse_iso_timestamp(date_value)
+        elif platform == 'facebook':
+            # Facebook uses date_posted directly
+            date_value = raw_post.get('date_posted')
+            if date_value:
+                transformed_post['date_posted'] = self._parse_iso_timestamp(date_value)
+        elif platform == 'tiktok':
+            # TikTok uses createTimeISO
+            date_value = raw_post.get('createTimeISO')
+            if date_value:
+                transformed_post['date_posted'] = self._parse_iso_timestamp(date_value)
         
         # Apply field mappings
         field_mappings = schema.get('field_mappings', {})
@@ -443,12 +487,24 @@ class SchemaMapper:
     
     def _calculate_text_length(self, raw_post: Dict, transformed_post: Dict) -> int:
         """Calculate text length."""
-        content = self._get_nested_field(transformed_post, 'post_content')
+        # Try different text content fields based on platform
+        content = (
+            self._get_nested_field(transformed_post, 'post_content') or 
+            self._get_nested_field(transformed_post, 'description') or
+            self._get_nested_field(transformed_post, 'text') or
+            ""
+        )
         return len(content) if content else 0
     
     def _detect_language(self, raw_post: Dict, transformed_post: Dict) -> str:
         """Detect language of content."""
-        content = self._get_nested_field(transformed_post, 'post_content')
+        # Try different text content fields based on platform
+        content = (
+            self._get_nested_field(transformed_post, 'post_content') or 
+            self._get_nested_field(transformed_post, 'description') or
+            self._get_nested_field(transformed_post, 'text') or
+            ""
+        )
         if not content:
             return 'unknown'
         
@@ -460,7 +516,13 @@ class SchemaMapper:
     
     def _calculate_sentiment(self, raw_post: Dict, transformed_post: Dict) -> float:
         """Calculate sentiment score."""
-        content = self._get_nested_field(transformed_post, 'post_content')
+        # Try different text content fields based on platform
+        content = (
+            self._get_nested_field(transformed_post, 'post_content') or 
+            self._get_nested_field(transformed_post, 'description') or
+            self._get_nested_field(transformed_post, 'text') or
+            ""
+        )
         if not content:
             return 0.0
         
@@ -495,6 +557,258 @@ class SchemaMapper:
         
         # Date (10%)
         if self._get_nested_field(transformed_post, 'date_posted'):
+            score += 1.0
+        
+        return score / max_score
+
+    # Additional preprocessing functions for multi-platform support
+    def _remove_extra_whitespace(self, text: str) -> str:
+        """Remove extra whitespace from text."""
+        if not text:
+            return ""
+        return re.sub(r'\s+', ' ', text.strip())
+
+    def _extract_hashtag_names(self, hashtags: List[Dict]) -> List[str]:
+        """Extract hashtag names from hashtag objects."""
+        if not hashtags:
+            return []
+        
+        extracted = []
+        for hashtag in hashtags:
+            if isinstance(hashtag, dict):
+                name = hashtag.get('name', hashtag.get('text', ''))
+                if name:
+                    extracted.append(name.lstrip('#').lower())
+            elif isinstance(hashtag, str):
+                extracted.append(hashtag.lstrip('#').lower())
+        
+        return extracted
+
+    def _extract_mention_names(self, mentions: List[Dict]) -> List[str]:
+        """Extract mention usernames from mention objects."""
+        if not mentions:
+            return []
+        
+        extracted = []
+        for mention in mentions:
+            if isinstance(mention, dict):
+                username = mention.get('username', mention.get('name', ''))
+                if username:
+                    extracted.append(username.lstrip('@'))
+            elif isinstance(mention, str):
+                extracted.append(mention.lstrip('@'))
+        
+        return extracted
+
+    def _normalize_keywords(self, keywords: List[str]) -> List[str]:
+        """Normalize YouTube keywords."""
+        if not keywords:
+            return []
+        
+        normalized = []
+        for keyword in keywords:
+            if isinstance(keyword, str):
+                clean_keyword = keyword.strip().lower()
+                if clean_keyword:
+                    normalized.append(clean_keyword)
+        
+        return normalized
+
+    def _parse_description_links(self, links: List[Dict]) -> List[Dict]:
+        """Parse description links from array format."""
+        if not links:
+            return []
+        
+        parsed = []
+        for link in links:
+            if isinstance(link, dict):
+                url = link.get('url', '')
+                text = link.get('text', '')
+                if url:
+                    parsed.append({
+                        'url': url,
+                        'text': text or url
+                    })
+        
+        return parsed
+
+    # TikTok-specific computation functions
+    def _sum_tiktok_engagement(self, raw_post: Dict, transformed_post: Dict) -> int:
+        """Sum TikTok engagement metrics."""
+        likes = self._get_nested_field(transformed_post, 'digg_count') or 0
+        comments = self._get_nested_field(transformed_post, 'comment_count') or 0
+        shares = self._get_nested_field(transformed_post, 'share_count') or 0
+        return likes + comments + shares
+
+    def _calculate_tiktok_engagement_rate(self, raw_post: Dict, transformed_post: Dict) -> float:
+        """Calculate TikTok engagement rate."""
+        total_engagement = self._sum_tiktok_engagement(raw_post, transformed_post)
+        views = self._get_nested_field(transformed_post, 'play_count') or 0
+        
+        if views > 0:
+            return total_engagement / views
+        return 0.0
+
+    def _check_has_music(self, raw_post: Dict, transformed_post: Dict) -> bool:
+        """Check if TikTok video has background music."""
+        music_id = self._get_nested_field(transformed_post, 'video_metadata.music_id')
+        music_title = self._get_nested_field(transformed_post, 'video_metadata.music_title')
+        return bool(music_id or music_title)
+
+    def _calculate_aspect_ratio(self, raw_post: Dict, transformed_post: Dict) -> str:
+        """Calculate video aspect ratio."""
+        width = self._get_nested_field(transformed_post, 'video_metadata.width') or 0
+        height = self._get_nested_field(transformed_post, 'video_metadata.height') or 0
+        
+        if width > 0 and height > 0:
+            # Common aspect ratios
+            ratio = width / height
+            if 0.55 <= ratio <= 0.58:  # ~9:16
+                return "9:16"
+            elif 1.75 <= ratio <= 1.80:  # ~16:9
+                return "16:9"
+            elif 0.98 <= ratio <= 1.02:  # ~1:1
+                return "1:1"
+            else:
+                return f"{width}:{height}"
+        
+        return "unknown"
+
+    def _count_hashtags(self, raw_post: Dict, transformed_post: Dict) -> int:
+        """Count number of hashtags."""
+        hashtags = self._get_nested_field(transformed_post, 'content_analysis.hashtags')
+        return len(hashtags) if hashtags else 0
+
+    def _calculate_tiktok_data_quality(self, raw_post: Dict, transformed_post: Dict) -> float:
+        """Calculate TikTok-specific data quality score."""
+        score = 0.0
+        max_score = 10.0
+        
+        # Description (30%)
+        if self._get_nested_field(transformed_post, 'description'):
+            score += 3.0
+        
+        # Engagement (30%)
+        likes = self._get_nested_field(transformed_post, 'digg_count') or 0
+        comments = self._get_nested_field(transformed_post, 'comment_count') or 0
+        if likes > 0 or comments > 0:
+            score += 3.0
+        
+        # Video metadata (20%)
+        video_url = self._get_nested_field(transformed_post, 'video_metadata.video_url')
+        duration = self._get_nested_field(transformed_post, 'video_metadata.duration_seconds')
+        if video_url and duration:
+            score += 2.0
+        
+        # Author info (10%)
+        if self._get_nested_field(transformed_post, 'author_name'):
+            score += 1.0
+        
+        # Date (10%)
+        if self._get_nested_field(transformed_post, 'date_posted'):
+            score += 1.0
+        
+        return score / max_score
+
+    # YouTube-specific computation functions
+    def _sum_youtube_engagement(self, raw_post: Dict, transformed_post: Dict) -> int:
+        """Sum YouTube engagement metrics."""
+        likes = self._get_nested_field(transformed_post, 'like_count') or 0
+        comments = self._get_nested_field(transformed_post, 'comment_count') or 0
+        return likes + comments
+
+    def _calculate_youtube_engagement_rate(self, raw_post: Dict, transformed_post: Dict) -> float:
+        """Calculate YouTube engagement rate."""
+        total_engagement = self._sum_youtube_engagement(raw_post, transformed_post)
+        views = self._get_nested_field(transformed_post, 'view_count') or 0
+        
+        if views > 0:
+            return total_engagement / views
+        return 0.0
+
+    def _parse_youtube_duration(self, raw_post: Dict, transformed_post: Dict) -> int:
+        """Parse YouTube duration string to seconds."""
+        duration_str = self._get_nested_field(transformed_post, 'video_metadata.duration')
+        if not duration_str:
+            return 0
+        
+        try:
+            # Handle formats like "PT4M13S", "4:13", "1:23:45"
+            if duration_str.startswith('PT'):
+                # ISO 8601 duration format
+                duration_str = duration_str[2:]  # Remove PT
+                hours = 0
+                minutes = 0
+                seconds = 0
+                
+                if 'H' in duration_str:
+                    hours_str, duration_str = duration_str.split('H')
+                    hours = int(hours_str)
+                
+                if 'M' in duration_str:
+                    minutes_str, duration_str = duration_str.split('M')
+                    minutes = int(minutes_str)
+                
+                if 'S' in duration_str:
+                    seconds_str = duration_str.replace('S', '')
+                    seconds = int(seconds_str)
+                
+                return hours * 3600 + minutes * 60 + seconds
+            
+            elif ':' in duration_str:
+                # Time format like "4:13" or "1:23:45"
+                parts = duration_str.split(':')
+                if len(parts) == 2:  # MM:SS
+                    return int(parts[0]) * 60 + int(parts[1])
+                elif len(parts) == 3:  # HH:MM:SS
+                    return int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
+            
+            return 0
+        except (ValueError, IndexError):
+            return 0
+
+    def _check_is_youtube_short(self, raw_post: Dict, transformed_post: Dict) -> bool:
+        """Check if video is a YouTube Short."""
+        duration_seconds = self._parse_youtube_duration(raw_post, transformed_post)
+        return duration_seconds > 0 and duration_seconds <= 60
+
+    def _calculate_title_length(self, raw_post: Dict, transformed_post: Dict) -> int:
+        """Calculate YouTube title length."""
+        title = self._get_nested_field(transformed_post, 'title')
+        return len(title) if title else 0
+
+
+    def _calculate_youtube_data_quality(self, raw_post: Dict, transformed_post: Dict) -> float:
+        """Calculate YouTube-specific data quality score."""
+        score = 0.0
+        max_score = 10.0
+        
+        # Title (20%)
+        if self._get_nested_field(transformed_post, 'title'):
+            score += 2.0
+        
+        # Description (20%)
+        if self._get_nested_field(transformed_post, 'description'):
+            score += 2.0
+        
+        # Engagement (25%)
+        likes = self._get_nested_field(transformed_post, 'like_count') or 0
+        views = self._get_nested_field(transformed_post, 'view_count') or 0
+        if likes > 0 and views > 0:
+            score += 2.5
+        
+        # Video metadata (15%)
+        thumbnail = self._get_nested_field(transformed_post, 'video_metadata.thumbnail_url')
+        duration = self._get_nested_field(transformed_post, 'video_metadata.duration')
+        if thumbnail and duration:
+            score += 1.5
+        
+        # Channel info (10%)
+        if self._get_nested_field(transformed_post, 'channel_name'):
+            score += 1.0
+        
+        # Date (10%)
+        if self._get_nested_field(transformed_post, 'published_at'):
             score += 1.0
         
         return score / max_score

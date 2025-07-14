@@ -9,6 +9,7 @@ from datetime import datetime
 from textblob import TextBlob
 from handlers.schema_mapper import SchemaMapper
 from handlers.media_detector import MediaDetector
+from handlers.platform_date_grouper import PlatformDateGrouper
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,7 @@ class TextProcessor:
     def __init__(self):
         self.schema_mapper = SchemaMapper()
         self.media_detector = MediaDetector()
+        self.platform_date_grouper = PlatformDateGrouper()
         
     def process_posts_for_analytics(self, raw_data: List[Dict], metadata: Dict) -> List[Dict]:
         """
@@ -125,32 +127,46 @@ class TextProcessor:
     
     def get_grouped_data_for_gcs(self, processed_posts: List[Dict]) -> Dict[str, List[Dict]]:
         """
-        Group processed posts by date for GCS upload (legacy pattern).
+        Group processed posts by their actual upload date for GCS upload.
+        
+        Uses platform-aware date extraction to ensure posts are grouped
+        by their original upload date from each platform, not crawl date.
         
         Args:
-            processed_posts: List of processed posts
+            processed_posts: List of processed posts with platform info
             
         Returns:
-            Dict with date keys and lists of posts
+            Dict with upload date keys (YYYY-MM-DD) and lists of posts
         """
         grouped_data = {}
         
         for post in processed_posts:
-            # Use grouped_date that was set during processing
-            date_key = post.get('grouped_date', post.get('date_posted', ''))
+            # Extract the actual upload date using platform-aware logic
+            platform = post.get('platform', 'unknown')
             
-            # Fallback date extraction
-            if not date_key:
-                date_key = datetime.utcnow().strftime('%Y-%m-%d')
-            elif 'T' in str(date_key):
-                date_key = str(date_key).split('T')[0]
+            # Use the date_posted field that was set by SchemaMapper
+            # This contains the actual upload date from the platform
+            upload_date = post.get('date_posted', '')
+            
+            if upload_date:
+                # Parse timestamp to date string
+                date_key = self.platform_date_grouper._parse_date_to_string(upload_date)
             else:
-                date_key = str(date_key)[:10]
+                logger.warning(f"Post {post.get('id', 'unknown')} missing date_posted field")
+                date_key = 'unknown'
             
-            # Group by date
+            # Group by upload date
             if date_key not in grouped_data:
                 grouped_data[date_key] = []
             grouped_data[date_key].append(post)
         
-        logger.info(f"Grouped {len(processed_posts)} posts into {len(grouped_data)} date groups for GCS upload")
+        logger.info(f"Grouped {len(processed_posts)} posts into {len(grouped_data)} upload date groups for GCS upload")
+        
+        # Log summary of date distribution
+        summary = self.platform_date_grouper.get_upload_date_summary(
+            {k: [{'platform': p.get('platform')} for p in v] for k, v in grouped_data.items()}
+        )
+        logger.info(f"Upload date range: {summary.get('earliest_upload_date')} to {summary.get('latest_upload_date')}")
+        logger.info(f"Platform distribution: {summary.get('platform_distribution', {})}")
+        
         return grouped_data

@@ -1,4 +1,19 @@
-# Data Processing Service
+# Data Processing Service - Comprehensive Functionality Guide
+
+## 📋 Table of Contents
+1. [Service Overview](#service-overview)
+2. [Architecture](#architecture)
+3. [Core Components](#core-components)
+4. [Event-Driven Processing](#event-driven-processing)
+5. [Data Transformation Pipeline](#data-transformation-pipeline)
+6. [Schema-Driven Mapping](#schema-driven-mapping)
+7. [Dual-Output Jobs](#dual-output-jobs)
+8. [Media Detection](#media-detection)
+9. [API Endpoints](#api-endpoints)
+10. [Error Handling](#error-handling)
+11. [Performance Optimization](#performance-optimization)
+12. [Monitoring & Observability](#monitoring--observability)
+13. [Integration Points](#integration-points)
 
 ## 🎯 Service Overview
 
@@ -18,56 +33,6 @@ The Data Processing Service is the core analytics engine that transforms raw soc
 - **Parallel Processing**: Three concurrent jobs for optimal performance
 - **Fault-Tolerant**: Individual job failures don't block others
 - **Scalable**: Cloud Run auto-scaling based on event volume
-
-## 🚀 Deployment
-
-This service auto-deploys to Cloud Run when you push to the main branch.
-
-### Cloud Run Configuration
-- **Service**: data-processing-service
-- **Region**: asia-southeast1
-- **Project**: competitor-destroyer
-
-### Environment Variables (Auto-configured)
-- `GOOGLE_CLOUD_PROJECT=competitor-destroyer`
-- `BIGQUERY_DATASET=social_analytics`
-- `PUBSUB_TOPIC_PREFIX=social-analytics`
-- `GCS_BUCKET_RAW_DATA=social-analytics-raw-data`
-
-## 🔧 Local Development
-
-To run the service locally for development and testing:
-
-1.  **Install dependencies:**
-    ```bash
-    pip install -r requirements.txt
-    ```
-
-2.  **Set up environment variables:**
-    Create a `.env` file in the service root and add the necessary environment variables (see `cloudrun.yaml` or `DEPLOYMENT.md` for a list).
-
-3.  **Run the application:**
-    ```bash
-    python app.py
-    ```
-    The service will be available at `http://localhost:8080`.
-
-## 📋 Table of Contents
-1. [Architecture](#architecture)
-2. [Core Components](#core-components)
-3. [Event-Driven Processing](#event-driven-processing)
-4. [Data Transformation Pipeline](#data-transformation-pipeline)
-5. [Schema-Driven Mapping](#schema-driven-mapping)
-6. [Dual-Output Jobs](#dual-output-jobs)
-7. [Media Detection](#media-detection)
-8. [API Endpoints](#api-endpoints)
-9. [Error Handling](#error-handling)
-10. [Performance Optimization](#performance-optimization)
-11. [Monitoring & Observability](#monitoring--observability)
-12. [Integration Points](#integration-points)
-13. [Security Considerations](#security-considerations)
-14. [Best Practices](#best-practices)
-15. [Related Documentation](#-related-documentation)
 
 ## 🏗️ Architecture
 
@@ -106,7 +71,7 @@ To run the service locally for development and testing:
 ```
 
 ### Technology Stack
-- **Runtime**: Python 3.9 on Cloud Run
+- **Runtime**: Python 3.11 on Cloud Run
 - **Framework**: Flask for HTTP endpoints
 - **Event System**: Google Cloud Pub/Sub (push model)
 - **Analytics Storage**: BigQuery with structured schema
@@ -353,7 +318,7 @@ posts_with_media = media_detector.detect_media_in_posts(processed_posts)
   "competitor": "nutifood",
   "brand": "growplus",
   "category": "milk-powder",
-
+  
   "post_url": "https://facebook.com/post123",
   "post_content": "Check out our new product!",
   "post_type": "Post",
@@ -361,11 +326,11 @@ posts_with_media = media_detector.detect_media_in_posts(processed_posts)
   "crawl_date": "2025-07-11T10:00:00Z",
   "processed_date": "2025-07-11T10:05:00Z",
   "grouped_date": "2025-07-10",
-
+  
   "page_name": "GrowPLUS Official",
   "page_verified": true,
   "page_followers": 50000,
-
+  
   "engagement_metrics": {
     "likes": 1200,
     "comments": 150,
@@ -376,14 +341,14 @@ posts_with_media = media_detector.detect_media_in_posts(processed_posts)
       {"type": "LOVE", "count": 350}
     ]
   },
-
+  
   "content_analysis": {
     "text_length": 25,
     "language": "en",
     "sentiment_score": 0.8,
     "hashtags": ["newproduct", "nutrition"]
   },
-
+  
   "media_metadata": {
     "media_count": 2,
     "has_video": true,
@@ -394,7 +359,7 @@ posts_with_media = media_detector.detect_media_in_posts(processed_posts)
     ],
     "media_processing_requested": true
   },
-
+  
   "processing_metadata": {
     "schema_version": "1.0.0",
     "processing_version": "1.0.0",
@@ -850,7 +815,7 @@ logger.info({
 - Maintain clear separation of concerns
 
 ## 📚 Related Documentation
-- [BigQuery Schema Mapping](./docs/bigquery-schema-mapping.md)
-- [Schema Configuration Guide](./docs/SCHEMA_CONFIGURATION_GUIDE.md)
-- [Deployment Guide](./DEPLOYMENT.md)
-- [Architecture Design](./docs/architecture-design.md)
+- [BigQuery Schema Mapping](./bigquery-schema-mapping.md)
+- [Schema Configuration Guide](./SCHEMA_CONFIGURATION_GUIDE.md)
+- [Deployment Results](./deployment-results.md)
+- [Architecture Design](./architecture-design.md)

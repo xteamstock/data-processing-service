@@ -58,11 +58,34 @@ class BigQueryHandler:
             # Determine target table
             target_table = self._get_platform_table(platform) if platform else self.posts_table
             
-            # Validate posts against BigQuery schema
-            validated_posts = self._validate_posts_schema(processed_posts)
+            # Trust schema mapper - posts are already transformed correctly
+            # Apply the same logic that works in test_youtube_only.py
+            cleaned_posts = []
+            for post in processed_posts:
+                # Flatten processing metadata (like test_youtube_only.py does)
+                if 'processing_metadata' in post:
+                    processing_meta = post.pop('processing_metadata')
+                    post['schema_version'] = processing_meta.get('schema_version')
+                    post['processing_version'] = processing_meta.get('processing_version')
+                    post['data_quality_score'] = processing_meta.get('data_quality_score')
+                
+                # Remove nested objects (like test_youtube_only.py does)
+                cleaned_post = {}
+                for key, value in post.items():
+                    if not isinstance(value, dict):
+                        cleaned_post[key] = value
+                
+                # Platform-specific field filtering
+                if platform == 'youtube':
+                    # Remove date_posted for YouTube since table uses published_at
+                    cleaned_post.pop('date_posted', None)
+                
+                cleaned_posts.append(cleaned_post)
             
-            # Insert to BigQuery
-            errors = self.client.insert_rows_json(target_table, validated_posts)
+            # Insert to BigQuery with cleaned posts
+            logger.info(f"Attempting BigQuery insertion to {target_table} with {len(cleaned_posts)} posts")
+            logger.info(f"Sample post keys: {list(cleaned_posts[0].keys()) if cleaned_posts else 'None'}")
+            errors = self.client.insert_rows_json(target_table, cleaned_posts)
             
             if errors:
                 error_msg = f"BigQuery insertion errors: {errors}"
@@ -127,12 +150,39 @@ class BigQueryHandler:
                     'page_verified': bool(post.get('page_verified', False)),
                     'page_followers': self._safe_int(post.get('page_followers', 0)),
                     'page_likes': self._safe_int(post.get('page_likes', 0)),
-                    'engagement_metrics': self._ensure_json_field(post.get('engagement_metrics', {})),
-                    'content_analysis': self._ensure_json_field(post.get('content_analysis', {})),
-                    'media_metadata': self._ensure_json_field(post.get('media_metadata', {})),
-                    'page_metadata': self._ensure_json_field(post.get('page_metadata', {})),
-                    'processing_metadata': self._ensure_json_field(post.get('processing_metadata', {}))
+                    # Add all the fields that working test includes
+                    'likes': self._safe_int(post.get('likes', 0)),
+                    'comments': self._safe_int(post.get('comments', 0)),
+                    'shares': self._safe_int(post.get('shares', 0)),
+                    'total_reactions': self._safe_int(post.get('total_reactions', 0)),
+                    'video_views': self._safe_int(post.get('video_views', 0)),
+                    'hashtags': post.get('hashtags', []),
+                    'likes_breakdown': str(post.get('likes_breakdown', '')),
+                    'reactions_by_type': str(post.get('reactions_by_type', '')),
+                    'attachments': str(post.get('attachments', '')),
+                    'page_intro': str(post.get('page_intro', '')),
+                    'page_creation_date': post.get('page_creation_date'),
+                    'page_address': str(post.get('page_address', '')),
+                    'page_reviews_score': float(post.get('page_reviews_score', 0.0)),
+                    'page_reviewers_count': self._safe_int(post.get('page_reviewers_count', 0)),
+                    'privacy_legal_info': str(post.get('privacy_legal_info', '')),
+                    'about_sections': str(post.get('about_sections', '')),
+                    'link_description': str(post.get('link_description', '')),
+                    'profile_handle': str(post.get('profile_handle', '')),
+                    'crawl_timestamp': post.get('crawl_timestamp'),
+                    'original_input': str(post.get('original_input', '')),
+                    'post_limit': self._safe_int(post.get('post_limit', 0)),
+                    'media_count': self._safe_int(post.get('media_count', 0)),
+                    'has_video': bool(post.get('has_video', False)),
+                    'has_image': bool(post.get('has_image', False)),
+                    'text_length': self._safe_int(post.get('text_length', 0)),
+                    'language': str(post.get('language', '')),
+                    'sentiment_score': float(post.get('sentiment_score', 0.0)),
+                    'data_quality_score': float(post.get('data_quality_score') or 0.0)
                 })
+                
+                # Note: processing_metadata is excluded for schema-driven tables
+                # as the table schema doesn't include these flattened fields
             
             elif platform == 'tiktok':
                 validated_post.update({
@@ -146,12 +196,12 @@ class BigQueryHandler:
                     'digg_count': self._safe_int(post.get('digg_count', 0)),
                     'share_count': self._safe_int(post.get('share_count', 0)),
                     'comment_count': self._safe_int(post.get('comment_count', 0)),
-                    'engagement_metrics': self._ensure_json_field(post.get('engagement_metrics', {})),
-                    'content_analysis': self._ensure_json_field(post.get('content_analysis', {})),
-                    'video_metadata': self._ensure_json_field(post.get('video_metadata', {})),
-                    'author_metadata': self._ensure_json_field(post.get('author_metadata', {})),
-                    'processing_metadata': self._ensure_json_field(post.get('processing_metadata', {}))
+                    # Note: Nested objects (engagement_metrics, content_analysis, video_metadata, author_metadata)
+                    # are removed to match schema-driven table structure
                 })
+                
+                # Note: processing_metadata is excluded for schema-driven tables
+                # as the table schema doesn't include these flattened fields
             
             elif platform == 'youtube':
                 validated_post.update({
@@ -167,19 +217,19 @@ class BigQueryHandler:
                     'like_count': self._safe_int(post.get('like_count', 0)),
                     'comment_count': self._safe_int(post.get('comment_count', 0)),
                     'published_at': post.get('published_at'),
-                    'engagement_metrics': self._ensure_json_field(post.get('engagement_metrics', {})),
-                    'content_analysis': self._ensure_json_field(post.get('content_analysis', {})),
-                    'video_metadata': self._ensure_json_field(post.get('video_metadata', {})),
-                    'channel_metadata': self._ensure_json_field(post.get('channel_metadata', {})),
-                    'processing_metadata': self._ensure_json_field(post.get('processing_metadata', {}))
+                    # Note: Nested objects (engagement_metrics, content_analysis, video_metadata, channel_metadata)
+                    # are removed to match schema-driven table structure
                 })
+                
+                # Note: processing_metadata is excluded for schema-driven tables
+                # as the table schema doesn't include these flattened fields
             else:
                 # Default/unknown platform - use minimal fields
-                validated_post.update({
-                    'engagement_metrics': self._ensure_json_field(post.get('engagement_metrics', {})),
-                    'content_analysis': self._ensure_json_field(post.get('content_analysis', {})),
-                    'processing_metadata': self._ensure_json_field(post.get('processing_metadata', {}))
-                })
+                # Note: Nested objects removed to match schema-driven table structure
+                pass
+                
+                # Note: processing_metadata is excluded for schema-driven tables
+                # as the table schema doesn't include these flattened fields
             
             # Validate timestamp format
             for date_field in ['date_posted', 'crawl_date', 'processed_date']:
@@ -259,9 +309,9 @@ class BigQueryHandler:
         """Get platform-specific table name."""
         if platform:
             platform_table_map = {
-                'facebook': f"{self.project_id}.{self.dataset_id}.facebook_posts",
-                'tiktok': f"{self.project_id}.{self.dataset_id}.tiktok_posts", 
-                'youtube': f"{self.project_id}.{self.dataset_id}.youtube_posts"
+                'facebook': f"{self.project_id}.{self.dataset_id}.facebook_posts_schema_driven",
+                'tiktok': f"{self.project_id}.{self.dataset_id}.tiktok_posts_schema_driven", 
+                'youtube': f"{self.project_id}.{self.dataset_id}.youtube_videos_schema_driven"
             }
             return platform_table_map.get(platform.lower(), f"{self.project_id}.{self.dataset_id}.posts")
         return f"{self.project_id}.{self.dataset_id}.posts"

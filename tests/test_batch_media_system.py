@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 """
-Test script for the new batch media detection and publishing system.
+Test script for the new batch media detection and publishing system with media tracking.
 
-This script demonstrates how the multi-platform media detector and batch
-event publisher work with fixture data files.
+This script demonstrates how the multi-platform media detector, batch event publisher,
+and media tracking system work together with fixture data files.
 
 USAGE:
-    python test_batch_media_system.py [--platform facebook|tiktok|youtube] [--publish]
+    python test_batch_media_system.py [--platform facebook|tiktok|youtube] [--publish] [--track]
     
     --platform: Test specific platform (default: all)
     --publish: Actually publish to Pub/Sub (default: dry-run)
+    --track: Enable media tracking to BigQuery (default: disabled)
 """
 
 import json
@@ -24,10 +25,11 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from handlers.multi_platform_media_detector import MultiPlatformMediaDetector
 from events.batch_media_event_publisher import BatchMediaEventPublisher
+from handlers.media_tracking_handler import MediaTrackingHandler
 
 
-def test_platform_media_detection(platform: str, publish_events: bool = False):
-    """Test media detection and event publishing for a specific platform."""
+def test_platform_media_detection(platform: str, publish_events: bool = False, track_media: bool = False):
+    """Test media detection, event publishing, and media tracking for a specific platform."""
     print(f"\n🔍 Testing {platform.upper()} Media Detection")
     print("=" * 60)
     
@@ -112,8 +114,18 @@ def test_platform_media_detection(platform: str, publish_events: bool = False):
         
         if publish_events:
             try:
-                # Actually publish the batch event
-                publisher = BatchMediaEventPublisher()
+                # Set environment variable to enable/disable tracking
+                if track_media:
+                    os.environ['MEDIA_TRACKING_ENABLED'] = 'true'
+                    print(f"🔍 Media tracking enabled - records will be inserted to BigQuery")
+                else:
+                    os.environ['MEDIA_TRACKING_ENABLED'] = 'false'
+                    print(f"⚠️  Media tracking disabled")
+                
+                # Actually publish the batch event (with automatic tracking integration)
+                # Set project ID from environment or use default
+                project_id = os.environ.get('GOOGLE_CLOUD_PROJECT', 'competitor-destroyer')
+                publisher = BatchMediaEventPublisher(project_id=project_id)
                 result = publisher.publish_batch_from_raw_file(
                     raw_posts, platform, crawl_metadata, file_metadata
                 )
@@ -123,6 +135,18 @@ def test_platform_media_detection(platform: str, publish_events: bool = False):
                     print(f"   Event ID: {result.get('event_id')}")
                     print(f"   Message ID: {result.get('message_id')}")
                     print(f"   Message: {result['message']}")
+                    
+                    # Show media tracking results (automatically handled by publisher)
+                    if track_media and 'tracking_result' in result:
+                        tracking_result = result['tracking_result']
+                        if tracking_result['success']:
+                            print(f"📊 Media tracking results:")
+                            print(f"   Tracking records inserted: {tracking_result['rows_inserted']}")
+                            print(f"   Tracking table: {tracking_result.get('table_id', 'N/A')}")
+                        else:
+                            print(f"⚠️  Media tracking failed: {tracking_result.get('error', 'Unknown error')}")
+                    elif track_media:
+                        print(f"ℹ️  Media tracking was enabled but no tracking results in response")
                 else:
                     print(f"❌ Failed to publish batch event: {result['message']}")
                     
@@ -145,7 +169,7 @@ def test_platform_media_detection(platform: str, publish_events: bool = False):
     return batch_result
 
 
-def test_all_platforms(publish_events: bool = False):
+def test_all_platforms(publish_events: bool = False, track_media: bool = False):
     """Test media detection for all platforms."""
     print("🚀 Testing Multi-Platform Batch Media Detection System")
     print("=" * 80)
@@ -155,7 +179,7 @@ def test_all_platforms(publish_events: bool = False):
     
     for platform in platforms:
         try:
-            result = test_platform_media_detection(platform, publish_events)
+            result = test_platform_media_detection(platform, publish_events, track_media)
             results[platform] = result
         except Exception as e:
             print(f"❌ Error testing {platform}: {str(e)}")
@@ -215,14 +239,19 @@ def main():
         action='store_true',
         help='Actually publish events to Pub/Sub (default: dry-run)'
     )
+    parser.add_argument(
+        '--track',
+        action='store_true',
+        help='Enable media tracking to BigQuery (default: disabled)'
+    )
     
     args = parser.parse_args()
     
     try:
         if args.platform == 'all':
-            results = test_all_platforms(args.publish)
+            results = test_all_platforms(args.publish, args.track)
         else:
-            results = test_platform_media_detection(args.platform, args.publish)
+            results = test_platform_media_detection(args.platform, args.publish, args.track)
         
         return 0
         

@@ -1,0 +1,218 @@
+{
+  "recommended_field_additions": {
+    "description": "14 high-value missing fields to bring TikTok coverage from 58.8% to 79.4%",
+    "fields_to_add": {
+      
+      "author_heart_count": {
+        "source_field": "authorMeta.heart",
+        "target_field": "author_metadata.heart_count",
+        "target_type": "INT64",
+        "required": false,
+        "preprocessing": ["safe_int"],
+        "default_value": 0,
+        "description": "Total hearts/likes received by author across all videos"
+      },
+      
+      "author_region": {
+        "source_field": "authorMeta.region",
+        "target_field": "author_metadata.region",
+        "target_type": "STRING",
+        "required": false,
+        "preprocessing": ["clean_text"],
+        "description": "Geographic region of the author (e.g., VN, US)"
+      },
+      
+      "author_friends_count": {
+        "source_field": "authorMeta.friends",
+        "target_field": "author_metadata.friends_count",
+        "target_type": "INT64",
+        "required": false,
+        "preprocessing": ["safe_int"],
+        "default_value": 0,
+        "description": "Number of friends the author has"
+      },
+      
+      "commerce_user": {
+        "source_field": "authorMeta.commerceUserInfo.commerceUser",
+        "target_field": "author_metadata.is_commerce_user",
+        "target_type": "BOOL",
+        "required": false,
+        "default_value": false,
+        "description": "Whether the user is registered as a commerce/business account"
+      },
+      
+      "commerce_category": {
+        "source_field": "authorMeta.commerceUserInfo.category",
+        "target_field": "author_metadata.business_category",
+        "target_type": "STRING",
+        "required": false,
+        "preprocessing": ["clean_text"],
+        "description": "Business category for commerce accounts (e.g., Baby, Food)"
+      },
+      
+      "is_tt_seller": {
+        "source_field": "authorMeta.ttSeller",
+        "target_field": "author_metadata.is_tiktok_seller",
+        "target_type": "BOOL",
+        "required": false,
+        "default_value": false,
+        "description": "Whether the account is a TikTok Shop seller"
+      },
+      
+      "video_definition": {
+        "source_field": "videoMeta.definition",
+        "target_field": "video_metadata.video_definition",
+        "target_type": "STRING",
+        "required": false,
+        "preprocessing": ["clean_text"],
+        "description": "Video quality definition (e.g., 540p, 720p, 1080p)"
+      },
+      
+      "video_format": {
+        "source_field": "videoMeta.format",
+        "target_field": "video_metadata.video_format",
+        "target_type": "STRING",
+        "required": false,
+        "preprocessing": ["clean_text"],
+        "description": "Video file format (e.g., mp4, webm)"
+      },
+      
+      "original_cover_url": {
+        "source_field": "videoMeta.originalCoverUrl",
+        "target_field": "video_metadata.original_cover_url",
+        "target_type": "STRING",
+        "required": false,
+        "validation": "url_format",
+        "description": "High-quality original cover image URL"
+      },
+      
+      "music_play_url": {
+        "source_field": "musicMeta.playUrl",
+        "target_field": "video_metadata.music_play_url",
+        "target_type": "STRING",
+        "required": false,
+        "validation": "url_format",
+        "description": "Direct URL to play the background music/sound"
+      },
+      
+      "music_cover_url": {
+        "source_field": "musicMeta.coverMediumUrl",
+        "target_field": "video_metadata.music_cover_url",
+        "target_type": "STRING",
+        "required": false,
+        "validation": "url_format",
+        "description": "Cover image URL for the background music"
+      },
+      
+      "crawl_input": {
+        "source_field": "input",
+        "target_field": "crawl_metadata.crawl_input",
+        "target_type": "STRING",
+        "required": false,
+        "preprocessing": ["clean_text"],
+        "description": "Original crawl input (username/URL used for data collection)"
+      },
+      
+      "original_avatar_url": {
+        "source_field": "authorMeta.originalAvatarUrl",
+        "target_field": "author_metadata.original_avatar_url",
+        "target_type": "STRING",
+        "required": false,
+        "validation": "url_format",
+        "description": "High-quality original avatar image URL"
+      },
+      
+      "subtitle_links": {
+        "source_field": "videoMeta.subtitleLinks",
+        "target_field": "video_metadata.subtitle_links",
+        "target_type": "JSON",
+        "required": false,
+        "description": "Array of subtitle download links with language and source info"
+      }
+    }
+  },
+  
+  "additional_fields_for_90_percent": {
+    "description": "7 more fields to reach 90%+ coverage (89.7% total)",
+    "fields_to_add": {
+      
+      "private_account": {
+        "source_field": "authorMeta.privateAccount",
+        "target_field": "author_metadata.is_private",
+        "target_type": "BOOL",
+        "required": false,
+        "default_value": false,
+        "description": "Whether the account is set to private"
+      },
+      
+      "author_digg_count": {
+        "source_field": "authorMeta.digg",
+        "target_field": "author_metadata.digg_count",
+        "target_type": "INT64",
+        "required": false,
+        "preprocessing": ["safe_int"],
+        "default_value": 0,
+        "description": "Total number of videos the author has liked/digged"
+      },
+      
+      "commerce_category_button": {
+        "source_field": "authorMeta.commerceUserInfo.categoryButton",
+        "target_field": "author_metadata.commerce_category_button",
+        "target_type": "BOOL",
+        "required": false,
+        "default_value": false,
+        "description": "Whether commerce category button is displayed"
+      },
+      
+      "music_original_cover_url": {
+        "source_field": "musicMeta.originalCoverMediumUrl",
+        "target_field": "video_metadata.music_original_cover_url",
+        "target_type": "STRING",
+        "required": false,
+        "validation": "url_format",
+        "description": "Original high-quality cover image URL for music"
+      },
+      
+      "author_room_id": {
+        "source_field": "authorMeta.roomId",
+        "target_field": "author_metadata.room_id",
+        "target_type": "STRING",
+        "required": false,
+        "preprocessing": ["clean_text"],
+        "description": "TikTok live room ID for the author"
+      },
+      
+      "author_bio_link": {
+        "source_field": "authorMeta.bioLink",
+        "target_field": "author_metadata.bio_link",
+        "target_type": "STRING",
+        "required": false,
+        "validation": "url_format",
+        "description": "External link in author's bio"
+      },
+      
+      "commerce_download_link": {
+        "source_field": "authorMeta.commerceUserInfo.downLoadLink.ios",
+        "target_field": "author_metadata.commerce_app_link",
+        "target_type": "STRING",
+        "required": false,
+        "validation": "url_format",
+        "description": "Commerce app download link"
+      }
+    }
+  },
+  
+  "coverage_summary": {
+    "current_coverage": "40/68 fields (58.8%)",
+    "after_14_fields": "54/68 fields (79.4%)",
+    "after_21_fields": "61/68 fields (89.7%)",
+    "target_achieved": "90%+ coverage",
+    "priority_categories": [
+      "Commerce & business intelligence",
+      "Video quality & format metadata", 
+      "Music & audio intelligence",
+      "Enhanced author profiling",
+      "Accessibility features"
+    ]
+  }
+}

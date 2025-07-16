@@ -50,7 +50,8 @@ class SchemaMapper:
             'extract_hashtag_names': self._extract_hashtag_names,
             'extract_mention_names': self._extract_mention_names,
             'normalize_keywords': self._normalize_keywords,
-            'parse_description_links': self._parse_description_links
+            'parse_description_links': self._parse_description_links,
+            'json_to_string': self._json_to_string
         }
         
         self.computation_functions = {
@@ -164,12 +165,8 @@ class SchemaMapper:
         }
         
         # Set platform-specific date_posted field
-        if platform == 'youtube':
-            # For YouTube, use the 'date' field as date_posted
-            date_value = raw_post.get('date')
-            if date_value:
-                transformed_post['date_posted'] = self._parse_iso_timestamp(date_value)
-        elif platform == 'facebook':
+        # Note: All platforms need date_posted for GCS grouping
+        if platform == 'facebook':
             # Facebook uses date_posted directly
             date_value = raw_post.get('date_posted')
             if date_value:
@@ -177,6 +174,11 @@ class SchemaMapper:
         elif platform == 'tiktok':
             # TikTok uses createTimeISO
             date_value = raw_post.get('createTimeISO')
+            if date_value:
+                transformed_post['date_posted'] = self._parse_iso_timestamp(date_value)
+        elif platform == 'youtube':
+            # YouTube uses date field (maps to published_at in schema, but we need date_posted for grouping)
+            date_value = raw_post.get('date')
             if date_value:
                 transformed_post['date_posted'] = self._parse_iso_timestamp(date_value)
         
@@ -454,36 +456,55 @@ class SchemaMapper:
     # Computation functions
     def _sum_reactions_by_type(self, raw_post: Dict, transformed_post: Dict) -> int:
         """Sum total reactions from reactions by type."""
-        reactions = self._get_nested_field(transformed_post, 'engagement_metrics.reactions_by_type')
-        if not reactions:
-            return 0
-        
-        total = 0
-        for reaction in reactions:
-            total += reaction.get('count', 0)
-        
-        return total
+        # For flattened schema, get reactions from likes/reactions fields
+        likes = self._get_nested_field(transformed_post, 'likes') or 0
+        return likes
     
     def _count_attachments(self, raw_post: Dict, transformed_post: Dict) -> int:
         """Count total attachments."""
-        attachments = self._get_nested_field(transformed_post, 'media_metadata.attachments')
-        return len(attachments) if attachments else 0
+        # For flattened schema, try to parse from attachments JSON string
+        attachments_str = self._get_nested_field(transformed_post, 'attachments')
+        if not attachments_str:
+            return 0
+        
+        try:
+            import json
+            attachments = json.loads(attachments_str) if isinstance(attachments_str, str) else attachments_str
+            return len(attachments) if isinstance(attachments, list) else 0
+        except:
+            return 0
     
     def _check_video_attachments(self, raw_post: Dict, transformed_post: Dict) -> bool:
         """Check if post has video attachments."""
-        attachments = self._get_nested_field(transformed_post, 'media_metadata.attachments')
-        if not attachments:
+        # For flattened schema, try to parse from attachments JSON string
+        attachments_str = self._get_nested_field(transformed_post, 'attachments')
+        if not attachments_str:
             return False
         
-        return any(att.get('type', '').lower() == 'video' for att in attachments)
+        try:
+            import json
+            attachments = json.loads(attachments_str) if isinstance(attachments_str, str) else attachments_str
+            if isinstance(attachments, list):
+                return any(att.get('type', '').lower() == 'video' for att in attachments)
+            return False
+        except:
+            return False
     
     def _check_image_attachments(self, raw_post: Dict, transformed_post: Dict) -> bool:
         """Check if post has image attachments."""
-        attachments = self._get_nested_field(transformed_post, 'media_metadata.attachments')
-        if not attachments:
+        # For flattened schema, try to parse from attachments JSON string
+        attachments_str = self._get_nested_field(transformed_post, 'attachments')
+        if not attachments_str:
             return False
         
-        return any(att.get('type', '').lower() in ['photo', 'image'] for att in attachments)
+        try:
+            import json
+            attachments = json.loads(attachments_str) if isinstance(attachments_str, str) else attachments_str
+            if isinstance(attachments, list):
+                return any(att.get('type', '').lower() in ['photo', 'image'] for att in attachments)
+            return False
+        except:
+            return False
     
     def _calculate_text_length(self, raw_post: Dict, transformed_post: Dict) -> int:
         """Calculate text length."""
@@ -542,13 +563,14 @@ class SchemaMapper:
             score += 4.0
         
         # Engagement (20%)
-        engagement = self._get_nested_field(transformed_post, 'engagement_metrics')
-        if engagement and (engagement.get('likes', 0) > 0 or engagement.get('comments', 0) > 0):
+        likes = self._get_nested_field(transformed_post, 'likes') or 0
+        comments = self._get_nested_field(transformed_post, 'comments') or 0
+        if likes > 0 or comments > 0:
             score += 2.0
         
         # Media (20%)
-        media = self._get_nested_field(transformed_post, 'media_metadata')
-        if media and media.get('media_count', 0) > 0:
+        media_count = self._get_nested_field(transformed_post, 'media_count') or 0
+        if media_count > 0:
             score += 2.0
         
         # Page info (10%)
@@ -632,6 +654,19 @@ class SchemaMapper:
         
         return parsed
 
+    def _json_to_string(self, value: Any) -> str:
+        """Convert JSON object/array to string for BigQuery compatibility."""
+        if value is None:
+            return ""
+        
+        try:
+            if isinstance(value, (dict, list)):
+                return json.dumps(value, ensure_ascii=False)
+            else:
+                return str(value)
+        except Exception:
+            return str(value)
+
     # TikTok-specific computation functions
     def _sum_tiktok_engagement(self, raw_post: Dict, transformed_post: Dict) -> int:
         """Sum TikTok engagement metrics."""
@@ -651,14 +686,14 @@ class SchemaMapper:
 
     def _check_has_music(self, raw_post: Dict, transformed_post: Dict) -> bool:
         """Check if TikTok video has background music."""
-        music_id = self._get_nested_field(transformed_post, 'video_metadata.music_id')
-        music_title = self._get_nested_field(transformed_post, 'video_metadata.music_title')
+        music_id = self._get_nested_field(transformed_post, 'music_id')
+        music_title = self._get_nested_field(transformed_post, 'music_title')
         return bool(music_id or music_title)
 
     def _calculate_aspect_ratio(self, raw_post: Dict, transformed_post: Dict) -> str:
         """Calculate video aspect ratio."""
-        width = self._get_nested_field(transformed_post, 'video_metadata.width') or 0
-        height = self._get_nested_field(transformed_post, 'video_metadata.height') or 0
+        width = self._get_nested_field(transformed_post, 'video_width') or 0
+        height = self._get_nested_field(transformed_post, 'video_height') or 0
         
         if width > 0 and height > 0:
             # Common aspect ratios
@@ -676,7 +711,7 @@ class SchemaMapper:
 
     def _count_hashtags(self, raw_post: Dict, transformed_post: Dict) -> int:
         """Count number of hashtags."""
-        hashtags = self._get_nested_field(transformed_post, 'content_analysis.hashtags')
+        hashtags = self._get_nested_field(transformed_post, 'hashtags')
         return len(hashtags) if hashtags else 0
 
     def _calculate_tiktok_data_quality(self, raw_post: Dict, transformed_post: Dict) -> float:
@@ -695,8 +730,8 @@ class SchemaMapper:
             score += 3.0
         
         # Video metadata (20%)
-        video_url = self._get_nested_field(transformed_post, 'video_metadata.video_url')
-        duration = self._get_nested_field(transformed_post, 'video_metadata.duration_seconds')
+        video_url = self._get_nested_field(transformed_post, 'video_url')
+        duration = self._get_nested_field(transformed_post, 'duration_seconds')
         if video_url and duration:
             score += 2.0
         
@@ -728,7 +763,7 @@ class SchemaMapper:
 
     def _parse_youtube_duration(self, raw_post: Dict, transformed_post: Dict) -> int:
         """Parse YouTube duration string to seconds."""
-        duration_str = self._get_nested_field(transformed_post, 'video_metadata.duration')
+        duration_str = self._get_nested_field(transformed_post, 'duration')
         if not duration_str:
             return 0
         
@@ -798,8 +833,8 @@ class SchemaMapper:
             score += 2.5
         
         # Video metadata (15%)
-        thumbnail = self._get_nested_field(transformed_post, 'video_metadata.thumbnail_url')
-        duration = self._get_nested_field(transformed_post, 'video_metadata.duration')
+        thumbnail = self._get_nested_field(transformed_post, 'thumbnail_url')
+        duration = self._get_nested_field(transformed_post, 'duration')
         if thumbnail and duration:
             score += 1.5
         

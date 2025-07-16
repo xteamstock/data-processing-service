@@ -1,0 +1,234 @@
+{
+  "table_name": "media_tracking",
+  "dataset": "social_analytics",
+  "description": "Media tracking table for monitoring media processing pipeline status and statistics",
+  "schema_version": "1.0.0",
+  "partitioning": {
+    "type": "TIME",
+    "field": "detection_timestamp",
+    "granularity": "DAY"
+  },
+  "clustering": {
+    "fields": ["platform", "status", "competitor", "media_type"]
+  },
+  "fields": [
+    {
+      "name": "media_id",
+      "type": "STRING",
+      "mode": "REQUIRED",
+      "description": "Unique identifier for media item (generated from crawl_id + post_id + media_type + URL hash)"
+    },
+    {
+      "name": "media_url",
+      "type": "STRING",
+      "mode": "REQUIRED",
+      "description": "Original media URL from platform"
+    },
+    {
+      "name": "post_id",
+      "type": "STRING",
+      "mode": "REQUIRED",
+      "description": "Post ID that contains this media"
+    },
+    {
+      "name": "crawl_id",
+      "type": "STRING",
+      "mode": "REQUIRED",
+      "description": "Crawl session identifier"
+    },
+    {
+      "name": "status",
+      "type": "STRING",
+      "mode": "REQUIRED",
+      "description": "Processing status: detected, processing, completed, failed"
+    },
+    {
+      "name": "media_type",
+      "type": "STRING",
+      "mode": "REQUIRED",
+      "description": "Type of media: image, video, audio, document"
+    },
+    {
+      "name": "platform",
+      "type": "STRING",
+      "mode": "REQUIRED",
+      "description": "Source platform: facebook, youtube, tiktok, instagram"
+    },
+    {
+      "name": "competitor",
+      "type": "STRING",
+      "mode": "REQUIRED",
+      "description": "Competitor identifier"
+    },
+    {
+      "name": "brand",
+      "type": "STRING",
+      "mode": "NULLABLE",
+      "description": "Brand identifier"
+    },
+    {
+      "name": "category",
+      "type": "STRING",
+      "mode": "NULLABLE",
+      "description": "Category identifier"
+    },
+    {
+      "name": "detection_timestamp",
+      "type": "TIMESTAMP",
+      "mode": "REQUIRED",
+      "description": "When media was first detected in the system"
+    },
+    {
+      "name": "processing_start_timestamp",
+      "type": "TIMESTAMP",
+      "mode": "NULLABLE",
+      "description": "When media processing started"
+    },
+    {
+      "name": "processing_end_timestamp",
+      "type": "TIMESTAMP",
+      "mode": "NULLABLE",
+      "description": "When media processing completed or failed"
+    },
+    {
+      "name": "last_status_update",
+      "type": "TIMESTAMP",
+      "mode": "REQUIRED",
+      "description": "Last time the status was updated"
+    },
+    {
+      "name": "retry_count",
+      "type": "INT64",
+      "mode": "NULLABLE",
+      "description": "Number of processing retry attempts"
+    },
+    {
+      "name": "error_message",
+      "type": "STRING",
+      "mode": "NULLABLE",
+      "description": "Error message if processing failed"
+    },
+    {
+      "name": "processing_metadata",
+      "type": "RECORD",
+      "mode": "NULLABLE",
+      "description": "Processing results and metadata",
+      "fields": [
+        {
+          "name": "file_size",
+          "type": "INT64",
+          "mode": "NULLABLE",
+          "description": "Downloaded file size in bytes"
+        },
+        {
+          "name": "storage_path",
+          "type": "STRING",
+          "mode": "NULLABLE",
+          "description": "GCS storage path for processed media"
+        },
+        {
+          "name": "quality_score",
+          "type": "FLOAT64",
+          "mode": "NULLABLE",
+          "description": "Media quality score (0-1)"
+        },
+        {
+          "name": "processing_duration_seconds",
+          "type": "INT64",
+          "mode": "NULLABLE",
+          "description": "Total processing duration in seconds"
+        },
+        {
+          "name": "media_dimensions",
+          "type": "RECORD",
+          "mode": "NULLABLE",
+          "description": "Media dimensions for images/videos",
+          "fields": [
+            {
+              "name": "width",
+              "type": "INT64",
+              "mode": "NULLABLE",
+              "description": "Media width in pixels"
+            },
+            {
+              "name": "height",
+              "type": "INT64",
+              "mode": "NULLABLE",
+              "description": "Media height in pixels"
+            },
+            {
+              "name": "duration",
+              "type": "FLOAT64",
+              "mode": "NULLABLE",
+              "description": "Video duration in seconds"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "media_metadata",
+      "type": "RECORD",
+      "mode": "NULLABLE",
+      "description": "Original media metadata from platform",
+      "fields": [
+        {
+          "name": "attachment_id",
+          "type": "STRING",
+          "mode": "NULLABLE",
+          "description": "Platform attachment ID"
+        },
+        {
+          "name": "attachment_url",
+          "type": "STRING",
+          "mode": "NULLABLE",
+          "description": "Platform attachment URL"
+        },
+        {
+          "name": "content_type",
+          "type": "STRING",
+          "mode": "NULLABLE",
+          "description": "MIME content type"
+        },
+        {
+          "name": "platform_metadata",
+          "type": "JSON",
+          "mode": "NULLABLE",
+          "description": "Platform-specific metadata as JSON"
+        }
+      ]
+    },
+    {
+      "name": "tracking_metadata",
+      "type": "RECORD",
+      "mode": "NULLABLE",
+      "description": "System tracking metadata",
+      "fields": [
+        {
+          "name": "created_by",
+          "type": "STRING",
+          "mode": "NULLABLE",
+          "description": "Service that created the tracking record"
+        },
+        {
+          "name": "tracking_version",
+          "type": "STRING",
+          "mode": "NULLABLE",
+          "description": "Media tracking system version"
+        },
+        {
+          "name": "priority",
+          "type": "STRING",
+          "mode": "NULLABLE",
+          "description": "Processing priority: high, medium, low"
+        },
+        {
+          "name": "processing_queue",
+          "type": "STRING",
+          "mode": "NULLABLE",
+          "description": "Processing queue assignment"
+        }
+      ]
+    }
+  ]
+}

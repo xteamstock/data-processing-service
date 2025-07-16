@@ -1,0 +1,168 @@
+{
+  "schema_version": "1.0.0",
+  "platform": "tiktok",
+  "created_date": "2025-07-14",
+  "description": "Minimal TikTok schema - load data as-is with basic type conversion only",
+  "source_format": "apify_json",
+  "target_format": "bigquery_flattened",
+  
+  "field_mappings": {
+    "core_identifiers": {
+      "id": {
+        "source_field": "id",
+        "target_field": "video_id", 
+        "target_type": "STRING",
+        "required": true,
+        "description": "TikTok video ID - no preprocessing"
+      },
+      "url": {
+        "source_field": "webVideoUrl",
+        "target_field": "video_url",
+        "target_type": "STRING",
+        "required": true,
+        "description": "Video URL - no preprocessing"
+      }
+    },
+    
+    "content_fields": {
+      "description": {
+        "source_field": "text",
+        "target_field": "description",
+        "target_type": "STRING",
+        "required": false,
+        "description": "Video description - raw text, no cleaning"
+      },
+      "text_language": {
+        "source_field": "textLanguage",
+        "target_field": "text_language",
+        "target_type": "STRING",
+        "required": false,
+        "description": "Language as-is from source"
+      },
+      "hashtags": {
+        "source_field": "hashtags",
+        "target_field": "hashtags",
+        "target_type": "ARRAY<STRING>",
+        "required": false,
+        "description": "Raw hashtags array - no processing"
+      },
+      "mentions": {
+        "source_field": "mentions",
+        "target_field": "mentions",
+        "target_type": "ARRAY<STRING>",
+        "required": false,
+        "description": "Raw mentions array - no processing"
+      }
+    },
+    
+    "user_fields": {
+      "author_name": {
+        "source_field": "authorMeta.nickName",
+        "target_field": "author_name",
+        "target_type": "STRING",
+        "required": false,
+        "description": "Author display name - raw"
+      },
+      "author_verified": {
+        "source_field": "authorMeta.verified",
+        "target_field": "author_verified",
+        "target_type": "BOOL",
+        "required": false,
+        "description": "Verified status - raw boolean"
+      },
+      "author_follower_count": {
+        "source_field": "authorMeta.fans",
+        "target_field": "author_follower_count",
+        "target_type": "INT64",
+        "required": false,
+        "preprocessing": ["safe_int"],
+        "description": "Follower count - safe int conversion only"
+      },
+      "author_region": {
+        "source_field": "authorMeta.region",
+        "target_field": "author_region",
+        "target_type": "STRING",
+        "required": false,
+        "description": "Author region - raw"
+      }
+    },
+    
+    "engagement_fields": {
+      "play_count": {
+        "source_field": "playCount",
+        "target_field": "play_count",
+        "target_type": "INT64",
+        "required": false,
+        "preprocessing": ["safe_int"],
+        "description": "Play count - safe int only"
+      },
+      "digg_count": {
+        "source_field": "diggCount",
+        "target_field": "digg_count",
+        "target_type": "INT64",
+        "required": false,
+        "preprocessing": ["safe_int"],
+        "description": "Likes - safe int only"
+      },
+      "comment_count": {
+        "source_field": "commentCount",
+        "target_field": "comment_count",
+        "target_type": "INT64",
+        "required": false,
+        "preprocessing": ["safe_int"],
+        "description": "Comments - safe int only"
+      },
+      "share_count": {
+        "source_field": "shareCount",
+        "target_field": "share_count",
+        "target_type": "INT64",
+        "required": false,
+        "preprocessing": ["safe_int"],
+        "description": "Shares - safe int only"
+      }
+    },
+    
+    "video_fields": {
+      "duration_seconds": {
+        "source_field": "videoMeta.duration",
+        "target_field": "duration_seconds",
+        "target_type": "INT64",
+        "required": false,
+        "preprocessing": ["safe_int"],
+        "description": "Duration - safe int only"
+      },
+      "video_width": {
+        "source_field": "videoMeta.width",
+        "target_field": "video_width",
+        "target_type": "INT64",
+        "required": false,
+        "preprocessing": ["safe_int"],
+        "description": "Video width - safe int only"
+      },
+      "video_height": {
+        "source_field": "videoMeta.height",
+        "target_field": "video_height",
+        "target_type": "INT64",
+        "required": false,
+        "preprocessing": ["safe_int"],
+        "description": "Video height - safe int only"
+      }
+    },
+    
+    "content_flags": {
+      "is_ad": {
+        "source_field": "isAd",
+        "target_field": "is_ad",
+        "target_type": "BOOL",
+        "required": false,
+        "description": "Ad flag - raw boolean"
+      }
+    }
+  },
+  
+  "computed_fields": {},
+  
+  "validation_rules": {
+    "required_fields": ["video_id", "video_url"]
+  }
+}

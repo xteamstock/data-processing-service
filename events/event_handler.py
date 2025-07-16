@@ -13,6 +13,7 @@ from handlers.bigquery_handler import BigQueryHandler
 from handlers.gcs_processed_handler import GCSProcessedHandler
 from handlers.media_detector import MediaDetector
 from events.event_publisher import EventPublisher
+from events.batch_media_event_publisher import BatchMediaEventPublisher
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +31,16 @@ class EventHandler:
         self.media_detector = MediaDetector()
         self.event_publisher = EventPublisher()
         self.storage_client = storage.Client()
+        
+        # Initialize batch media publisher with error handling
+        try:
+            self.batch_media_publisher = BatchMediaEventPublisher()
+            self.batch_media_enabled = True
+            logger.info("Batch media publisher initialized successfully")
+        except Exception as e:
+            logger.error(f"Failed to initialize batch media publisher: {e}")
+            self.batch_media_publisher = None
+            self.batch_media_enabled = False
     
     def handle_data_ingestion_completed(self, request: Request) -> tuple:
         """
@@ -57,11 +68,39 @@ class EventHandler:
             # Log successful processing
             logger.info(f"Successfully processed data ingestion event in {processing_duration:.2f}s")
             
+            # Check if both critical jobs succeeded
+            gcs_success = result.get('gcs_upload_completed', False)
+            bigquery_success = result.get('bigquery_insert_completed', False)
+            overall_success = gcs_success and bigquery_success
+            
+            if not overall_success:
+                # Log which job failed
+                failed_jobs = []
+                if not gcs_success:
+                    failed_jobs.append("GCS upload")
+                if not bigquery_success:
+                    failed_jobs.append("BigQuery insertion")
+                
+                error_msg = f"Data processing failed: {', '.join(failed_jobs)} failed"
+                logger.error(error_msg)
+                
+                return {
+                    'success': False,
+                    'error': error_msg,
+                    'processed_posts': result['processed_posts'],
+                    'gcs_upload_completed': gcs_success,
+                    'bigquery_insert_completed': bigquery_success,
+                    'jobs_summary': result.get('jobs_summary', {})
+                }, 500
+            
             return {
                 'success': True,
                 'processed_posts': result['processed_posts'],
                 'media_processing_requested': result['media_processing_requested'],
-                'processing_duration_seconds': processing_duration
+                'processing_duration_seconds': processing_duration,
+                'gcs_upload_completed': gcs_success,
+                'bigquery_insert_completed': bigquery_success,
+                'jobs_summary': result.get('jobs_summary', {})
             }, 200
             
         except Exception as e:
@@ -185,7 +224,7 @@ class EventHandler:
         
         # Job 2: Insert to BigQuery
         logger.info(f"Starting Job 2: BigQuery analytics insert for crawl {crawl_id}")
-        bigquery_result = self.bigquery_handler.insert_posts(processed_posts, metadata)
+        bigquery_result = self.bigquery_handler.insert_posts(processed_posts, metadata, platform=metadata.get('platform'))
         
         # Publish data processing completed event
         self.event_publisher.publish_data_processing_completed(
@@ -196,35 +235,49 @@ class EventHandler:
         )
         
         # Job 3: Detect media and publish processing events
-        logger.info(f"Starting Job 3: Media detection and event publishing for crawl {crawl_id}")
-        posts_with_media = []
-        for post in processed_posts:
-            media_metadata = post.get('media_metadata', {})
-            if media_metadata.get('media_processing_requested', False):
-                posts_with_media.append(post)
+        # COMMENTED OUT: Using Job 4 (Batch Media Processing) instead
+        # logger.info(f"Starting Job 3: Media detection and event publishing for crawl {crawl_id}")
+        # posts_with_media = []
+        # for post in processed_posts:
+        #     media_metadata = post.get('media_metadata', {})
+        #     if media_metadata.get('media_processing_requested', False):
+        #         posts_with_media.append(post)
+        # 
+        # media_processing_requested = False
+        # media_event_success = True
+        # 
+        # if posts_with_media:
+        #     # Extract media information for event
+        #     media_info = self.media_detector.extract_media_for_processing_event(posts_with_media)
+        #     
+        #     # Validate media URLs
+        #     validation_results = self.media_detector.validate_media_urls(media_info)
+        #     
+        #     if validation_results['is_valid']:
+        #         media_processing_requested = True
+        #         media_event_success = self.event_publisher.publish_media_processing_requested(
+        #             crawl_id=crawl_id,
+        #             snapshot_id=snapshot_id,
+        #             posts_with_media=posts_with_media,
+        #             media_info=media_info
+        #         )
+        #         
+        #         logger.info(f"Requested media processing for {len(posts_with_media)} posts ({media_info['video_count']} videos, {media_info['image_count']} images)")
+        #     else:
+        #         logger.warning(f"Media validation failed for crawl {crawl_id}: {validation_results['validation_errors'][:3]}")
         
+        # Set default values for variables used by Job 3
+        posts_with_media = []
         media_processing_requested = False
         media_event_success = True
         
-        if posts_with_media:
-            # Extract media information for event
-            media_info = self.media_detector.extract_media_for_processing_event(posts_with_media)
-            
-            # Validate media URLs
-            validation_results = self.media_detector.validate_media_urls(media_info)
-            
-            if validation_results['is_valid']:
-                media_processing_requested = True
-                media_event_success = self.event_publisher.publish_media_processing_requested(
-                    crawl_id=crawl_id,
-                    snapshot_id=snapshot_id,
-                    posts_with_media=posts_with_media,
-                    media_info=media_info
-                )
-                
-                logger.info(f"Requested media processing for {len(posts_with_media)} posts ({media_info['video_count']} videos, {media_info['image_count']} images)")
-            else:
-                logger.warning(f"Media validation failed for crawl {crawl_id}: {validation_results['validation_errors'][:3]}")
+        # Job 4: Batch Media Processing
+        logger.info(f"Starting Job 4: Batch media event publishing for crawl {crawl_id}")
+        batch_media_result = self._process_batch_media_events(
+            processed_posts, 
+            metadata.get('platform'),
+            metadata
+        )
         
         # Create comprehensive result
         result = {
@@ -249,11 +302,12 @@ class EventHandler:
                     'posts_with_media': len(posts_with_media),
                     'media_event_published': media_event_success and media_processing_requested,
                     'total_media_count': sum(post.get('media_metadata', {}).get('media_count', 0) for post in posts_with_media)
-                }
+                },
+                'job4_batch_media': batch_media_result
             }
         }
         
-        logger.info(f"Dual-output jobs completed for crawl {crawl_id}: GCS={gcs_success}, BigQuery={bigquery_result.get('success', False)}, Media={media_processing_requested}")
+        logger.info(f"All jobs completed for crawl {crawl_id}: GCS={gcs_success}, BigQuery={bigquery_result.get('success', False)}, Media={media_processing_requested}, BatchMedia={batch_media_result.get('success', False)}")
         return result
     
     def _download_raw_data_from_gcs(self, gcs_path: str) -> List[Dict]:
@@ -289,3 +343,56 @@ class EventHandler:
         except Exception as e:
             logger.error(f"Error downloading from GCS {gcs_path}: {str(e)}")
             raise
+    
+    def _process_batch_media_events(self, processed_posts: List[Dict], platform: str, crawl_metadata: Dict) -> Dict:
+        """
+        Process media URLs from posts and publish batch media event.
+        
+        Args:
+            processed_posts: List of processed posts
+            platform: Platform name (facebook, tiktok, youtube)
+            crawl_metadata: Crawl metadata including crawl_id, snapshot_id, etc.
+            
+        Returns:
+            Result dictionary with success status and media stats
+        """
+        try:
+            # Check if batch media publisher is available
+            if not self.batch_media_enabled or not self.batch_media_publisher:
+                logger.warning("Batch media publisher not available, skipping batch media processing")
+                return {
+                    'success': False,
+                    'error': 'Batch media publisher not initialized',
+                    'media_count': 0
+                }
+            
+            # Call batch media publisher with processed posts
+            result = self.batch_media_publisher.publish_batch_from_raw_file(
+                raw_posts=processed_posts,
+                platform=platform,
+                crawl_metadata=crawl_metadata,
+                file_metadata={'source': 'data_processing_pipeline'}
+            )
+            
+            # Extract relevant stats for response
+            stats = result.get('stats', {})
+            return {
+                'success': result['success'],
+                'media_count': stats.get('total_media_items', 0),
+                'event_id': result.get('event_id'),
+                'message_id': result.get('message_id'),
+                'media_breakdown': {
+                    'videos': stats.get('total_videos', 0),
+                    'images': stats.get('total_images', 0),
+                    'posts_with_media': stats.get('posts_with_media', 0)
+                }
+            }
+            
+        except Exception as e:
+            error_msg = f"Batch media processing failed: {str(e)}"
+            logger.error(error_msg)
+            return {
+                'success': False,
+                'error': error_msg,
+                'media_count': 0
+            }

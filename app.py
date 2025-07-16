@@ -49,6 +49,28 @@ def test_endpoint():
         test_data = request.json
         logger.info(f"Test endpoint called with data: {test_data}")
         
+        # Add BigQuery configuration debug info
+        if test_data and test_data.get('test') == 'bigquery_debug':
+            from handlers.bigquery_handler import BigQueryHandler
+            import os
+            
+            bq_handler = BigQueryHandler()
+            debug_info = {
+                'environment_vars': {
+                    'GOOGLE_CLOUD_PROJECT': os.getenv('GOOGLE_CLOUD_PROJECT', 'NOT_SET'),
+                    'BIGQUERY_DATASET': os.getenv('BIGQUERY_DATASET', 'NOT_SET')
+                },
+                'handler_config': {
+                    'project_id': bq_handler.project_id,
+                    'dataset_id': bq_handler.dataset_id,
+                    'facebook_table': bq_handler._get_platform_table('facebook')
+                }
+            }
+            return jsonify({
+                'message': 'BigQuery debug info',
+                'debug_info': debug_info
+            })
+        
         return jsonify({
             'message': 'Test endpoint working',
             'received_data': test_data

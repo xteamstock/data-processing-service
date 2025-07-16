@@ -16,6 +16,7 @@ import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from handlers.multi_platform_media_detector import MultiPlatformMediaDetector
+from handlers.media_tracking_handler import MediaTrackingHandler
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +48,22 @@ class BatchMediaEventPublisher:
             self.publisher = pubsub_v1.PublisherClient()
             self.topic_path = self.publisher.topic_path(self.project_id, self.topic_name)
             self.media_detector = MultiPlatformMediaDetector()
+            
+            # Initialize media tracking handler
+            self.media_tracking_enabled = os.getenv('MEDIA_TRACKING_ENABLED', 'true').lower() == 'true'
+            self.media_tracking_handler = None
+            
+            if self.media_tracking_enabled:
+                try:
+                    self.media_tracking_handler = MediaTrackingHandler()
+                    logger.info("MediaTrackingHandler initialized successfully")
+                except Exception as e:
+                    logger.warning(f"Failed to initialize MediaTrackingHandler: {e}")
+                    logger.warning("Continuing without media tracking")
+                    self.media_tracking_enabled = False
+            
             logger.info(f"Initialized BatchMediaEventPublisher for topic: {self.topic_path}")
+            logger.info(f"Media tracking enabled: {self.media_tracking_enabled}")
         except Exception as e:
             logger.error(f"Failed to initialize Batch Media Event Publisher: {e}")
             raise
@@ -76,10 +92,13 @@ class BatchMediaEventPublisher:
                 logger.info(f"No media found in {platform} batch, skipping event publication")
                 return self._create_result(success=True, message="No media to process", stats=batch_result)
             
-            # Step 3: Prepare batch event
+            # Step 3: Insert media tracking records
+            tracking_result = self._insert_media_tracking_records(batch_result, crawl_metadata, platform)
+            
+            # Step 4: Prepare batch event
             batch_event = self._create_batch_event(batch_result, crawl_metadata, file_metadata)
             
-            # Step 4: Publish single batch event
+            # Step 5: Publish single batch event
             future = self.publisher.publish(
                 self.topic_path,
                 json.dumps(batch_event).encode('utf-8'),
@@ -106,7 +125,8 @@ class BatchMediaEventPublisher:
                 message=f"Published batch event with {batch_result['total_media_items']} media items",
                 stats=batch_result,
                 event_id=batch_event['event_id'],
-                message_id=message_id
+                message_id=message_id,
+                tracking_result=tracking_result
             )
             
         except Exception as e:
@@ -221,6 +241,29 @@ class BatchMediaEventPublisher:
         
         if media_type == 'video':
             duration = metadata.get('duration', 30)  # seconds
+            
+            # Parse duration if it's a string (e.g., "00:00:24" or "00:01:05")
+            if isinstance(duration, str):
+                try:
+                    if ':' in duration:
+                        # Format like "00:00:24" or "00:01:05"
+                        parts = duration.split(':')
+                        if len(parts) == 3:  # HH:MM:SS
+                            hours, minutes, seconds = map(int, parts)
+                            duration = hours * 3600 + minutes * 60 + seconds
+                        elif len(parts) == 2:  # MM:SS
+                            minutes, seconds = map(int, parts)
+                            duration = minutes * 60 + seconds
+                    else:
+                        # Try to parse as float
+                        duration = float(duration)
+                except (ValueError, AttributeError):
+                    duration = 30  # Default fallback
+            
+            # Ensure duration is numeric
+            if not isinstance(duration, (int, float)):
+                duration = 30
+            
             # Rough estimate: 1MB per second for typical social media video
             return float(duration) * 1.0
         else:
@@ -266,9 +309,71 @@ class BatchMediaEventPublisher:
             f"year={now.year}/month={now.month:02d}/day={now.day:02d}/"
         )
     
+    def _insert_media_tracking_records(self, batch_result: Dict[str, Any], 
+                                     crawl_metadata: Dict[str, Any], platform: str) -> Dict[str, Any]:
+        """
+        Insert media tracking records for all detected media items.
+        
+        Args:
+            batch_result: Result from media detection
+            crawl_metadata: Crawl context metadata
+            platform: Platform name
+            
+        Returns:
+            Tracking insertion result
+        """
+        if not self.media_tracking_enabled or not self.media_tracking_handler:
+            return {'success': True, 'rows_inserted': 0, 'tracking_disabled': True}
+        
+        try:
+            # Extract media items from batch result
+            media_items = []
+            
+            # Process all media URLs from the batch
+            for media_url_info in batch_result.get('all_media_urls', []):
+                media_item = {
+                    'crawl_id': crawl_metadata.get('crawl_id'),
+                    'post_id': media_url_info.get('post_id'),
+                    'url': media_url_info.get('url'),
+                    'type': media_url_info.get('type', 'unknown'),
+                    'platform': platform,
+                    'competitor': crawl_metadata.get('competitor'),
+                    'brand': crawl_metadata.get('brand'),
+                    'category': crawl_metadata.get('category'),
+                    'id': media_url_info.get('id'),
+                    'attachment_url': media_url_info.get('attachment_url'),
+                    'content_type': media_url_info.get('content_type'),
+                    'platform_metadata': media_url_info.get('metadata', {})
+                }
+                media_items.append(media_item)
+            
+            # Insert tracking records
+            tracking_result = self.media_tracking_handler.insert_detected_media(
+                media_items,
+                batch_metadata={
+                    'batch_id': batch_result.get('batch_id'),
+                    'total_media_items': batch_result.get('total_media_items'),
+                    'platform': platform,
+                    'crawl_metadata': crawl_metadata
+                }
+            )
+            
+            if tracking_result['success']:
+                logger.info(f"✅ Inserted {tracking_result['rows_inserted']} media tracking records")
+            else:
+                logger.warning(f"⚠️ Media tracking insertion failed: {tracking_result.get('error')}")
+                # Don't fail the entire batch for tracking failures
+            
+            return tracking_result
+            
+        except Exception as e:
+            logger.error(f"Error inserting media tracking records: {str(e)}")
+            # Don't fail the entire batch for tracking failures
+            return {'success': False, 'error': str(e), 'rows_inserted': 0}
+    
     def _create_result(self, success: bool, message: str, stats: Optional[Dict] = None, 
                       event_id: Optional[str] = None, message_id: Optional[str] = None, 
-                      error: Optional[str] = None) -> Dict[str, Any]:
+                      error: Optional[str] = None, tracking_result: Optional[Dict] = None) -> Dict[str, Any]:
         """Create standardized result dictionary."""
         result = {
             'success': success,
@@ -284,6 +389,8 @@ class BatchMediaEventPublisher:
             result['message_id'] = message_id
         if error:
             result['error'] = error
+        if tracking_result:
+            result['tracking_result'] = tracking_result
             
         return result
     

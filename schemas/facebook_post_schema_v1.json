@@ -53,7 +53,7 @@
       },
       "hashtags": {
         "source_field": "hashtags",
-        "target_field": "content_analysis.hashtags",
+        "target_field": "hashtags",
         "target_type": "ARRAY<STRING>",
         "required": false,
         "preprocessing": ["normalize_hashtags"],
@@ -149,7 +149,7 @@
     "engagement_fields": {
       "likes": {
         "source_field": "likes",
-        "target_field": "engagement_metrics.likes",
+        "target_field": "likes",
         "target_type": "INT64",
         "required": false,
         "preprocessing": ["safe_int"],
@@ -158,7 +158,7 @@
       },
       "comments": {
         "source_field": "num_comments",
-        "target_field": "engagement_metrics.comments",
+        "target_field": "comments",
         "target_type": "INT64",
         "required": false,
         "preprocessing": ["safe_int"],
@@ -167,53 +167,87 @@
       },
       "shares": {
         "source_field": "num_shares",
-        "target_field": "engagement_metrics.shares",
+        "target_field": "shares",
         "target_type": "INT64",
         "required": false,
         "preprocessing": ["safe_int"],
         "default_value": 0,
         "description": "Total shares of post"
       },
+      "num_likes_type": {
+        "source_field": "num_likes_type",
+        "target_field": "likes_breakdown",
+        "target_type": "STRING",
+        "required": false,
+        "preprocessing": ["json_to_string"],
+        "description": "Detailed likes structure with type and count as JSON string"
+      },
       "reactions_by_type": {
         "source_field": "count_reactions_type",
-        "target_field": "engagement_metrics.reactions_by_type",
-        "target_type": "ARRAY<STRUCT<type STRING, count INT64>>",
+        "target_field": "reactions_by_type",
+        "target_type": "STRING",
         "required": false,
-        "preprocessing": ["parse_reaction_types"],
-        "description": "Detailed breakdown of reactions by type"
+        "preprocessing": ["json_to_string"],
+        "description": "Detailed breakdown of reactions by type as JSON string"
+      },
+      "video_views": {
+        "source_field": "video_view_count",
+        "target_field": "video_views",
+        "target_type": "INT64",
+        "required": false,
+        "preprocessing": ["safe_int"],
+        "default_value": 0,
+        "description": "Video-specific view count"
       }
     },
     
     "media_fields": {
       "attachments": {
         "source_field": "attachments",
-        "target_field": "media_metadata.attachments",
-        "target_type": "ARRAY<STRUCT<id STRING, type STRING, url STRING, attachment_url STRING>>",
+        "target_field": "attachments",
+        "target_type": "STRING",
         "required": false,
-        "preprocessing": ["parse_attachments"],
-        "description": "Media attachments (photos, videos)"
+        "preprocessing": ["json_to_string"],
+        "description": "Media attachments (photos, videos) as JSON string"
       },
-      "post_image": {
-        "source_field": "post_image",
-        "target_field": "media_metadata.primary_image_url",
+      "primary_image_url": {
+        "source_field": "post_external_image",
+        "target_field": "primary_image_url",
         "target_type": "STRING",
         "required": false,
         "validation": "url_format",
-        "description": "Primary image URL for post"
+        "description": "Primary external image URL for post"
+      },
+      "header_image_url": {
+        "source_field": "header_image",
+        "target_field": "header_image_url",
+        "target_type": "STRING",
+        "required": false,
+        "validation": "url_format",
+        "description": "Page header/cover image URL"
+      },
+      "avatar_url": {
+        "source_field": "avatar_image_url",
+        "target_field": "avatar_url",
+        "target_type": "STRING",
+        "required": false,
+        "validation": "url_format",
+        "description": "User/page avatar image URL"
       }
     },
     
     "page_metadata_fields": {
       "page_intro": {
         "source_field": "page_intro",
-        "target_field": "page_metadata.page_intro",
+        "target_field": "page_intro",
         "target_type": "STRING",
         "required": false,
+        "preprocessing": ["clean_text"],
         "description": "Page introduction/description"
       },
       "page_logo": {
         "source_field": "page_logo",
-        "target_field": "page_metadata.page_logo",
+        "target_field": "page_logo",
         "target_type": "STRING",
         "required": false,
         "validation": "url_format",
@@ -221,7 +255,7 @@
       },
       "page_website": {
         "source_field": "page_external_website",
-        "target_field": "page_metadata.page_website",
+        "target_field": "page_website",
         "target_type": "STRING",
         "required": false,
         "validation": "url_format",
@@ -229,22 +263,22 @@
       },
       "page_phone": {
         "source_field": "page_phone",
-        "target_field": "page_metadata.page_phone",
+        "target_field": "page_phone",
         "target_type": "STRING",
         "required": false,
         "description": "Page contact phone number"
       },
       "page_email": {
         "source_field": "page_email",
-        "target_field": "page_metadata.page_email",
+        "target_field": "page_email",
         "target_type": "STRING",
         "required": false,
         "validation": "email_format",
         "description": "Page contact email"
       },
-      "page_creation_time": {
+      "page_creation_date": {
         "source_field": "page_creation_time",
-        "target_field": "page_metadata.page_creation_date",
+        "target_field": "page_creation_date",
         "target_type": "TIMESTAMP",
         "required": false,
         "preprocessing": ["parse_iso_timestamp"],
@@ -252,7 +286,7 @@
       },
       "page_address": {
         "source_field": "about",
-        "target_field": "page_metadata.page_address",
+        "target_field": "page_address",
         "target_type": "STRING",
         "required": false,
         "preprocessing": ["extract_address_from_about"],
@@ -260,7 +294,7 @@
       },
       "page_reviews_score": {
         "source_field": "page_reviews_score",
-        "target_field": "page_metadata.page_reviews_score",
+        "target_field": "page_reviews_score",
         "target_type": "FLOAT64",
         "required": false,
         "preprocessing": ["safe_float"],
@@ -268,72 +302,211 @@
       },
       "page_reviewers_count": {
         "source_field": "page_reviewers_amount",
-        "target_field": "page_metadata.page_reviewers_count",
+        "target_field": "page_reviewers_count",
         "target_type": "INT64",
         "required": false,
         "preprocessing": ["safe_int"],
         "default_value": 0,
         "description": "Number of page reviewers"
+      },
+      "privacy_legal_info": {
+        "source_field": "privacy_and_legal_info",
+        "target_field": "privacy_legal_info",
+        "target_type": "STRING",
+        "required": false,
+        "preprocessing": ["clean_text"],
+        "description": "Page legal and privacy information"
+      },
+      "delegate_page_id": {
+        "source_field": "delegate_page_id",
+        "target_field": "delegate_page_id",
+        "target_type": "STRING",
+        "required": false,
+        "description": "Facebook page delegation ID"
+      },
+      "price_range": {
+        "source_field": "page_price_range",
+        "target_field": "price_range",
+        "target_type": "STRING",
+        "required": false,
+        "description": "Page pricing information"
+      },
+      "page_direct_url": {
+        "source_field": "page_url",
+        "target_field": "page_direct_url",
+        "target_type": "STRING",
+        "required": false,
+        "validation": "url_format",
+        "description": "Direct page URL"
+      },
+      "about_sections": {
+        "source_field": "about",
+        "target_field": "about_sections",
+        "target_type": "STRING",
+        "required": false,
+        "preprocessing": ["json_to_string"],
+        "description": "Complete page about sections array as JSON string"
       }
     },
     
     "sponsored_content": {
       "is_sponsored": {
         "source_field": "is_sponsored",
-        "target_field": "content_analysis.contains_sponsored",
+        "target_field": "contains_sponsored",
         "target_type": "BOOL",
         "required": false,
         "default_value": false,
         "description": "Whether post is sponsored content"
+      }
+    },
+    
+    "advertising_fields": {
+      "active_ads_urls": {
+        "source_field": "active_ads_urls",
+        "target_field": "active_ads_urls",
+        "target_type": "ARRAY<STRING>",
+        "required": false,
+        "description": "Array of active advertisement URLs"
+      }
+    },
+    
+    "content_metadata": {
+      "link_description": {
+        "source_field": "link_description_text",
+        "target_field": "link_description",
+        "target_type": "STRING",
+        "required": false,
+        "preprocessing": ["clean_text"],
+        "description": "Link preview description text"
+      },
+      "following_status": {
+        "source_field": "following",
+        "target_field": "following_status",
+        "target_type": "BOOL",
+        "required": false,
+        "default_value": false,
+        "description": "Following status of the page"
+      },
+      "is_page": {
+        "source_field": "is_page",
+        "target_field": "is_page",
+        "target_type": "BOOL",
+        "required": false,
+        "default_value": false,
+        "description": "Boolean indicating if post is from page"
+      },
+      "profile_handle": {
+        "source_field": "profile_handle",
+        "target_field": "profile_handle",
+        "target_type": "STRING",
+        "required": false,
+        "preprocessing": ["clean_username"],
+        "description": "Profile handle/username"
+      }
+    },
+    
+    "crawl_metadata": {
+      "crawl_timestamp": {
+        "source_field": "timestamp",
+        "target_field": "crawl_timestamp",
+        "target_type": "TIMESTAMP",
+        "required": false,
+        "preprocessing": ["parse_iso_timestamp"],
+        "description": "Timestamp when data was crawled"
+      },
+      "original_input": {
+        "source_field": "input",
+        "target_field": "original_input",
+        "target_type": "STRING",
+        "required": false,
+        "preprocessing": ["json_to_string"],
+        "description": "Original crawl input parameters as JSON string"
+      },
+      "date_range_start": {
+        "source_field": "input.start_date",
+        "target_field": "date_range_start",
+        "target_type": "STRING",
+        "required": false,
+        "description": "Crawl start date parameter"
+      },
+      "date_range_end": {
+        "source_field": "input.end_date",
+        "target_field": "date_range_end",
+        "target_type": "STRING",
+        "required": false,
+        "description": "Crawl end date parameter"
+      },
+      "post_limit": {
+        "source_field": "input.num_of_posts",
+        "target_field": "post_limit",
+        "target_type": "INT64",
+        "required": false,
+        "preprocessing": ["safe_int"],
+        "description": "Number of posts requested"
+      },
+      "include_profile_data": {
+        "source_field": "input.include_profile_data",
+        "target_field": "include_profile_data",
+        "target_type": "BOOL",
+        "required": false,
+        "description": "Whether profile data was included"
+      },
+      "source_url": {
+        "source_field": "input.url",
+        "target_field": "source_url",
+        "target_type": "STRING",
+        "required": false,
+        "validation": "url_format",
+        "description": "Original URL crawled"
       }
     }
   },
   
   "computed_fields": {
     "total_reactions": {
-      "target_field": "engagement_metrics.reactions",
+      "target_field": "total_reactions",
       "target_type": "INT64",
       "computation": "sum_reactions_by_type",
       "description": "Total reactions across all types"
     },
     "media_count": {
-      "target_field": "media_metadata.media_count",
+      "target_field": "media_count",
       "target_type": "INT64",
       "computation": "count_attachments",
       "description": "Total number of media attachments"
     },
     "has_video": {
-      "target_field": "media_metadata.has_video",
+      "target_field": "has_video",
       "target_type": "BOOL",
       "computation": "check_video_attachments",
       "description": "Whether post contains video"
     },
     "has_image": {
-      "target_field": "media_metadata.has_image",
+      "target_field": "has_image",
       "target_type": "BOOL",
       "computation": "check_image_attachments",
       "description": "Whether post contains images"
     },
     "text_length": {
-      "target_field": "content_analysis.text_length",
+      "target_field": "text_length",
       "target_type": "INT64",
       "computation": "calculate_text_length",
       "description": "Length of post content"
     },
     "language": {
-      "target_field": "content_analysis.language",
+      "target_field": "language",
       "target_type": "STRING",
       "computation": "detect_language",
       "description": "Detected language of content"
     },
     "sentiment_score": {
-      "target_field": "content_analysis.sentiment_score",
+      "target_field": "sentiment_score",
       "target_type": "FLOAT64",
       "computation": "calculate_sentiment",
       "description": "Sentiment polarity score (-1 to 1)"
     },
     "data_quality_score": {
-      "target_field": "processing_metadata.data_quality_score",
+      "target_field": "data_quality_score",
       "target_type": "FLOAT64",
       "computation": "calculate_data_quality",
       "description": "Data completeness score (0 to 1)"
@@ -368,6 +541,8 @@
     "safe_float": "Convert to float with 0.0 default",
     "parse_reaction_types": "Convert reactions array to structured format",
     "parse_attachments": "Convert attachments to structured format",
-    "extract_address_from_about": "Extract address from about sections"
+    "extract_address_from_about": "Extract address from about sections",
+    "clean_username": "Clean and format username",
+    "json_to_string": "Convert JSON object/array to string for BigQuery compatibility"
   }
 }

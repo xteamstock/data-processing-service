@@ -5,6 +5,10 @@ from flask import Flask, request, jsonify
 from events.event_handler import EventHandler
 import os
 import logging
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

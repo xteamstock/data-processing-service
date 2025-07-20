@@ -23,6 +23,11 @@ class BigQueryHandler:
         self.dataset_id = os.getenv('BIGQUERY_DATASET', 'social_analytics')
         self.posts_table = f"{self.dataset_id}.posts"
         self.events_table = f"{self.dataset_id}.processing_events"
+        
+        # Deduplication configuration
+        self.deduplication_enabled = os.getenv('BIGQUERY_DEDUPLICATION_ENABLED', 'false').lower() == 'true'
+        self.deduplication_batch_size = int(os.getenv('BIGQUERY_DEDUPLICATION_BATCH_SIZE', '1000'))
+        self.deduplication_fallback_on_error = os.getenv('BIGQUERY_DEDUPLICATION_FALLBACK_ON_ERROR', 'true').lower() == 'true'
     
     def insert_post(self, processed_post: Dict, platform: str) -> bool:
         """
@@ -55,6 +60,15 @@ class BigQueryHandler:
             return {'success': True, 'rows_inserted': 0, 'table_id': target_table}
         
         try:
+            # Apply deduplication if enabled
+            if self.deduplication_enabled and platform:
+                processed_posts = self._filter_duplicates_batched(processed_posts, platform)
+                # If all posts were duplicates, return early
+                if not processed_posts:
+                    logger.info("All posts were duplicates, nothing to insert")
+                    target_table = self._get_platform_table(platform)
+                    return {'success': True, 'rows_inserted': 0, 'table_id': target_table}
+            
             # Determine target table
             target_table = self._get_platform_table(platform) if platform else self.posts_table
             
@@ -339,6 +353,143 @@ class BigQueryHandler:
                 
         except Exception as e:
             logger.warning(f"Error logging processing event: {str(e)}")
+    
+    def _extract_post_ids(self, posts: List[Dict]) -> List[str]:
+        """
+        Extract post_id values from posts list.
+        
+        Args:
+            posts: List of posts to extract IDs from
+            
+        Returns:
+            List of valid post IDs for duplicate checking
+        """
+        post_ids = []
+        for post in posts:
+            # Check for post_id field (Facebook) or video_id field (TikTok/YouTube)
+            post_id = post.get('post_id') or post.get('video_id')
+            if post_id:
+                post_ids.append(str(post_id))
+        return post_ids
+    
+    def _get_existing_post_ids(self, post_ids: List[str], table_id: str) -> set:
+        """
+        Query BigQuery to find existing post_id values using parameterized queries.
+        
+        Args:
+            post_ids: List of post IDs to check
+            table_id: Target BigQuery table ID
+            
+        Returns:
+            Set of existing post IDs
+        """
+        if not post_ids:
+            return set()
+        
+        try:
+            # Determine the ID column based on table type
+            if 'facebook' in table_id:
+                id_column = 'post_id'
+            elif 'tiktok' in table_id or 'youtube' in table_id:
+                id_column = 'video_id'
+            else:
+                # Default fallback - try both columns
+                id_column = 'COALESCE(post_id, video_id)'
+            
+            # Use parameterized query for safety
+            query = f"""
+                SELECT DISTINCT 
+                    {id_column} as post_id
+                FROM `{table_id}` 
+                WHERE {id_column} IN UNNEST(@post_ids)
+            """
+            
+            job_config = bigquery.QueryJobConfig(
+                query_parameters=[
+                    bigquery.ArrayQueryParameter("post_ids", "STRING", post_ids)
+                ]
+            )
+            
+            query_job = self.client.query(query, job_config=job_config)
+            results = query_job.result()
+            return {row.post_id for row in results if row.post_id}
+            
+        except Exception as e:
+            logger.error(f"Error checking for existing post_ids: {str(e)}")
+            if self.deduplication_fallback_on_error:
+                logger.warning("Falling back to assume no duplicates due to error")
+                return set()
+            raise
+    
+    def _filter_duplicates(self, posts: List[Dict], platform: str) -> List[Dict]:
+        """
+        Remove posts that already exist in the target table.
+        
+        Args:
+            posts: List of posts to check
+            platform: Platform name for table selection
+            
+        Returns:
+            Filtered list of new posts only
+        """
+        if not posts:
+            return posts
+        
+        # Extract post IDs
+        post_ids = self._extract_post_ids(posts)
+        if not post_ids:
+            logger.info("No post IDs found, skipping deduplication")
+            return posts
+        
+        # Get target table
+        table_id = self._get_platform_table(platform)
+        
+        # Find existing post IDs
+        existing_ids = self._get_existing_post_ids(post_ids, table_id)
+        
+        # Filter out duplicates
+        new_posts = []
+        for post in posts:
+            post_id = post.get('post_id') or post.get('video_id')
+            if post_id and str(post_id) not in existing_ids:
+                new_posts.append(post)
+        
+        # Log results
+        duplicates_found = len(posts) - len(new_posts)
+        if duplicates_found > 0:
+            logger.info(f"Filtered {duplicates_found} duplicate posts, inserting {len(new_posts)} new posts")
+        else:
+            logger.info(f"No duplicates found, inserting all {len(posts)} posts")
+        
+        return new_posts
+    
+    def _filter_duplicates_batched(self, posts: List[Dict], platform: str) -> List[Dict]:
+        """
+        Handle large datasets by processing duplicate checking in batches.
+        
+        Args:
+            posts: List of posts to check
+            platform: Platform name for table selection
+            
+        Returns:
+            Filtered list of new posts only
+        """
+        if len(posts) <= self.deduplication_batch_size:
+            return self._filter_duplicates(posts, platform)
+        
+        logger.info(f"Processing {len(posts)} posts in batches of {self.deduplication_batch_size}")
+        filtered_posts = []
+        
+        for i in range(0, len(posts), self.deduplication_batch_size):
+            batch = posts[i:i + self.deduplication_batch_size]
+            filtered_batch = self._filter_duplicates(batch, platform)
+            filtered_posts.extend(filtered_batch)
+            logger.info(f"Processed batch {i // self.deduplication_batch_size + 1}, kept {len(filtered_batch)} of {len(batch)} posts")
+        
+        total_duplicates = len(posts) - len(filtered_posts)
+        logger.info(f"Batch processing complete: filtered {total_duplicates} duplicates, keeping {len(filtered_posts)} new posts")
+        
+        return filtered_posts
 
 class BigQueryInsertionError(Exception):
     """Custom exception for BigQuery insertion errors."""
